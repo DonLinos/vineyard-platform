@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Σύνδεση — Vineyard Field Reports</title>
+<style>
+  :root {
+    --ink: #f2ede1;
+    --ink-dim: #b9c2b3;
+    --ink-faint: #7c8a78;
+    --bg: #1d2620;
+    --bg-card: #26312a;
+    --line: #3a473e;
+    --gold: #c99a3e;
+    --gold-dim: #8f6f2c;
+    --danger: #d97757;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+    padding: 24px;
+  }
+  #contours {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.35;
+  }
+  .wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 380px;
+  }
+  .eyebrow {
+    font-size: 12px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 6px;
+    text-align: center;
+  }
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-weight: 400;
+    font-size: 27px;
+    text-align: center;
+    margin: 0 0 34px;
+    color: var(--ink);
+    letter-spacing: 0.01em;
+  }
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 28px 26px;
+  }
+  label {
+    display: block;
+    font-size: 13px;
+    color: var(--ink-dim);
+    margin: 0 0 6px;
+  }
+  .field {
+    margin-bottom: 16px;
+  }
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    background: #18201b;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 11px 12px;
+    font-size: 15px;
+    color: var(--ink);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  input[type="email"]:focus,
+  input[type="password"]:focus {
+    border-color: var(--gold-dim);
+  }
+  button.primary {
+    width: 100%;
+    background: var(--gold);
+    color: #241a08;
+    border: none;
+    border-radius: 6px;
+    padding: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 6px;
+    transition: background 0.15s, opacity 0.15s;
+  }
+  button.primary:hover { background: #dcaa4c; }
+  button.primary:disabled { opacity: 0.55; cursor: default; }
+  .msg {
+    font-size: 13px;
+    line-height: 1.5;
+    margin: 14px 0 0;
+    padding: 10px 12px;
+    border-radius: 6px;
+    display: none;
+  }
+  .msg.error {
+    display: block;
+    background: rgba(217, 119, 87, 0.12);
+    color: #eeab93;
+    border: 1px solid rgba(217, 119, 87, 0.3);
+  }
+  .msg.info {
+    display: block;
+    background: rgba(201, 154, 62, 0.1);
+    color: var(--gold);
+    border: 1px solid rgba(201, 154, 62, 0.25);
+  }
+  .foot {
+    text-align: center;
+    margin-top: 18px;
+    font-size: 13px;
+    color: var(--ink-faint);
+  }
+  .foot a {
+    color: var(--ink-dim);
+    text-decoration: none;
+    border-bottom: 1px solid var(--line);
+    cursor: pointer;
+  }
+  .foot a:hover { color: var(--gold); border-color: var(--gold-dim); }
+  #app-view {
+    display: none;
+  }
+  #app-view .card { text-align: center; }
+  #app-view p { color: var(--ink-dim); font-size: 14px; margin: 4px 0; }
+  #winery-select {
+    width: 100%;
+    background: #18201b;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 11px 12px;
+    font-size: 15px;
+    color: var(--ink);
+    margin: 14px 0;
+  }
+</style>
+</head>
+<body>
+
+<svg id="contours" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+  <path d="M -20 120 Q 100 80 200 130 T 420 110" stroke="#3a473e" stroke-width="1.5" fill="none"/>
+  <path d="M -20 180 Q 110 140 210 190 T 420 170" stroke="#3a473e" stroke-width="1.5" fill="none"/>
+  <path d="M -20 240 Q 120 200 220 250 T 420 230" stroke="#3a473e" stroke-width="1.5" fill="none"/>
+  <path d="M -20 600 Q 100 640 220 610 T 420 630" stroke="#3a473e" stroke-width="1.5" fill="none"/>
+  <path d="M -20 660 Q 110 700 230 670 T 420 690" stroke="#3a473e" stroke-width="1.5" fill="none"/>
+  <path d="M -20 720 Q 120 760 240 730 T 420 750" stroke="#3a473e" stroke-width="1.5" fill="none"/>
+</svg>
+
+<div class="wrap">
+
+  <div id="login-view">
+    <p class="eyebrow">Αμπελουργική παρακολούθηση</p>
+    <h1>Σύνδεση</h1>
+    <div class="card">
+      <div class="field">
+        <label for="email">Email</label>
+        <input type="email" id="email" autocomplete="email" placeholder="name@example.com">
+      </div>
+      <div class="field">
+        <label for="password">Κωδικός</label>
+        <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="primary" id="login-btn">Σύνδεση</button>
+      <div class="msg" id="login-msg"></div>
+    </div>
+    <p class="foot">Χρειάζεσαι πρόσβαση; Απευθύνσου στον γεωπόνο σου.</p>
+  </div>
+
+  <div id="app-view">
+    <p class="eyebrow">Συνδεδεμένος ως</p>
+    <h1 id="user-email-display" style="font-size:19px;"></h1>
+    <div class="card">
+      <div id="single-winery" style="display:none;">
+        <p>Κτήμα</p>
+        <h1 id="single-winery-name" style="font-size:22px; margin:6px 0 4px;"></h1>
+      </div>
+      <div id="multi-winery" style="display:none;">
+        <p>Επίλεξε κτήμα</p>
+        <select id="winery-select"></select>
+      </div>
+      <button class="primary" id="continue-btn" style="margin-top:18px;">Συνέχεια</button>
+      <div class="msg" id="app-msg"></div>
+    </div>
+    <p class="foot"><a id="logout-link">Αποσύνδεση</a></p>
+  </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+  const SUPABASE_URL = "https://xxyrareqzgvsaolhftbh.supabase.co";
+  const SUPABASE_KEY = "sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE";
+  const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  const loginView = document.getElementById("login-view");
+  const appView = document.getElementById("app-view");
+  const loginMsg = document.getElementById("login-msg");
+  const appMsg = document.getElementById("app-msg");
+  const loginBtn = document.getElementById("login-btn");
+
+  function showMsg(el, text, type) {
+    el.textContent = text;
+    el.className = "msg " + type;
+  }
+
+  function clearMsg(el) {
+    el.textContent = "";
+    el.className = "msg";
+  }
+
+  async function handleLogin() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    clearMsg(loginMsg);
+
+    if (!email || !password) {
+      showMsg(loginMsg, "Συμπλήρωσε email και κωδικό.", "error");
+      return;
+    }
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = "Σύνδεση...";
+
+    const { data, error } = await supa.auth.signInWithPassword({ email, password });
+
+    loginBtn.disabled = false;
+    loginBtn.textContent = "Σύνδεση";
+
+    if (error) {
+      showMsg(loginMsg, "Λάθος email ή κωδικός. Δοκίμασε ξανά.", "error");
+      return;
+    }
+
+    await loadMemberships(data.user);
+  }
+
+  async function loadMemberships(user) {
+    document.getElementById("user-email-display").textContent = user.email;
+
+    const { data: memberships, error } = await supa
+      .from("memberships")
+      .select("winery_id, role, wineries(name)")
+      .eq("user_id", user.id);
+
+    if (error || !memberships || memberships.length === 0) {
+      loginView.style.display = "none";
+      appView.style.display = "block";
+      showMsg(appMsg, "Δεν έχεις πρόσβαση σε κανένα κτήμα ακόμα. Απευθύνσου στον γεωπόνο σου.", "error");
+      return;
+    }
+
+    loginView.style.display = "none";
+    appView.style.display = "block";
+
+    if (memberships.length === 1) {
+      document.getElementById("single-winery").style.display = "block";
+      document.getElementById("single-winery-name").textContent = memberships[0].wineries.name;
+      window._selectedWineryId = memberships[0].winery_id;
+    } else {
+      document.getElementById("multi-winery").style.display = "block";
+      const select = document.getElementById("winery-select");
+      select.innerHTML = "";
+      memberships.forEach(m => {
+        const opt = document.createElement("option");
+        opt.value = m.winery_id;
+        opt.textContent = m.wineries.name + (m.role === "agronomist" ? " (όλα)" : "");
+        select.appendChild(opt);
+      });
+      window._selectedWineryId = select.value;
+      select.addEventListener("change", () => { window._selectedWineryId = select.value; });
+    }
+  }
+
+  document.getElementById("continue-btn").addEventListener("click", () => {
+    if (!window._selectedWineryId) return;
+    window.location.href = "admin.html?winery_id=" + window._selectedWineryId;
+  });
+
+  document.getElementById("logout-link").addEventListener("click", async () => {
+    await supa.auth.signOut();
+    window.location.reload();
+  });
+
+  loginBtn.addEventListener("click", handleLogin);
+  document.getElementById("password").addEventListener("keydown", e => {
+    if (e.key === "Enter") handleLogin();
+  });
+
+  (async () => {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session && session.user) {
+      await loadMemberships(session.user);
+    }
+  })();
+</script>
+
+</body>
+</html>

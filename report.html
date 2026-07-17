@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vineyard Field Report</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:Georgia,'Times New Roman',serif;background:#faf9f6;color:#1a1a1a;font-size:14px;line-height:1.6;}
+.page{max-width:820px;margin:0 auto;padding:2.5rem 2rem;}
+.print-btn{position:fixed;top:16px;right:16px;font-size:12px;padding:8px 16px;border-radius:7px;border:1px solid #ccc;background:#fff;cursor:pointer;font-family:sans-serif;z-index:10;}
+.print-btn:hover{background:#f5f4f0;}
+@media print{.print-btn{display:none;}.page{padding:1rem;}}
+
+.report-header{border-bottom:2px solid #1a1a1a;padding-bottom:1.5rem;margin-bottom:2rem;}
+.header-top{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;}
+.estate-name{font-size:24px;font-weight:bold;letter-spacing:-.3px;margin-bottom:4px;}
+.report-subtitle{font-size:13px;color:#666;font-style:italic;}
+.report-no{font-size:12px;font-family:sans-serif;color:#888;border:1px solid #ddd;padding:4px 10px;border-radius:4px;align-self:flex-start;white-space:nowrap;}
+.meta-table{width:100%;margin-top:1.25rem;border-collapse:collapse;border:1px solid #ddd;}
+.meta-table td{padding:8px 14px;border:1px solid #ddd;font-size:13px;font-family:sans-serif;}
+.meta-table .lbl{background:#f5f4f0;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#666;width:25%;}
+
+.alert-section{margin-bottom:2rem;}
+.alert-hdr{display:flex;align-items:center;gap:10px;padding:10px 16px;background:#fdecea;border:1px solid #f5b7b1;border-bottom:none;border-radius:8px 8px 0 0;}
+.alert-hdr-txt{font-size:14px;font-weight:bold;font-family:sans-serif;color:#7b241c;flex:1;}
+.alert-count-badge{font-size:11px;font-weight:bold;padding:2px 8px;border-radius:99px;background:#e74c3c;color:#fff;font-family:sans-serif;}
+.alert-table{width:100%;border-collapse:collapse;border:1px solid #f5b7b1;border-top:1px solid #e0a09a;border-radius:0 0 8px 8px;overflow:hidden;}
+.alert-table td{padding:10px 14px;border-bottom:1px solid #f5b7b1;font-family:sans-serif;font-size:13px;vertical-align:top;}
+.alert-table tr:last-child td{border-bottom:none;}
+.alert-table .sev{text-align:center;font-size:11px;font-weight:bold;padding:3px 8px;border-radius:4px;white-space:nowrap;}
+.sev-red{background:#e74c3c;color:#fff;}
+.sev-orange{background:#e67e22;color:#fff;}
+.sev-yellow{background:#f1c40f;color:#5c4a00;}
+.alert-legend{display:flex;gap:14px;align-items:center;padding:8px 16px;font-family:sans-serif;font-size:11px;color:#888;background:#faf9f6;border:1px solid #f5b7b1;border-top:none;}
+.alert-legend span{display:inline-flex;align-items:center;gap:5px;}
+.legend-dot{width:8px;height:8px;border-radius:50%;display:inline-block;}
+.no-alerts{padding:12px 16px;background:#f0f9f4;border:1px solid #a9dfbf;border-radius:0 0 8px 8px;font-size:13px;font-family:sans-serif;color:#1e8449;}
+
+.sec-title{font-size:11px;font-weight:bold;font-family:sans-serif;text-transform:uppercase;letter-spacing:.1em;color:#666;margin:2rem 0 .75rem;padding-bottom:.5rem;border-bottom:1px solid #ddd;}
+
+.summary-row{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border:1px solid #ddd;border-radius:8px;overflow:hidden;margin-bottom:2rem;font-family:sans-serif;}
+.sum-cell{padding:12px 16px;border-right:1px solid #ddd;text-align:center;}
+.sum-cell:last-child{border-right:none;}
+.sum-val{font-size:22px;font-weight:bold;margin-bottom:2px;}
+.sum-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;}
+
+.gen-obs-box{background:#faf9f6;border:1px solid #ddd;border-radius:6px;padding:1rem 1.25rem;margin-bottom:2rem;font-size:14px;line-height:1.8;color:#333;}
+
+.area-section{margin-bottom:2.5rem;}
+.area-hdr{display:flex;align-items:center;gap:10px;margin-bottom:.75rem;}
+.area-dot{width:11px;height:11px;border-radius:50%;flex-shrink:0;}
+.area-name{font-size:16px;font-weight:bold;}
+.area-block-count{font-size:12px;font-family:sans-serif;color:#888;}
+.area-info-table{width:100%;border-collapse:collapse;margin-bottom:1rem;font-family:sans-serif;}
+.area-info-table td{padding:6px 12px;border:1px solid #ddd;font-size:12px;}
+.area-info-table .lbl{background:#fafafa;font-weight:600;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#888;width:20%;}
+
+.variety-table{width:100%;border-collapse:collapse;margin-bottom:1rem;font-family:sans-serif;font-size:13px;}
+.variety-table th{font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.07em;color:#888;text-align:left;padding:7px 10px;border-bottom:2px solid #ddd;}
+.variety-table td{padding:8px 10px;border-bottom:1px solid #eee;vertical-align:top;}
+.variety-table tr:last-child td{border-bottom:none;}
+
+.blocks-table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:13px;}
+.blocks-table th{font-size:10px;font-weight:bold;text-transform:uppercase;letter-spacing:.07em;color:#888;text-align:left;padding:7px 10px;border-bottom:2px solid #ddd;}
+.blocks-table td{padding:8px 10px;border-bottom:1px solid #eee;vertical-align:top;}
+.blocks-table tr:last-child td{border-bottom:none;}
+.pill{display:inline-block;font-size:11px;font-weight:600;padding:2px 7px;border-radius:4px;margin:2px;font-family:sans-serif;}
+.p-bbch{background:#d5f5e3;color:#1a5c35;}
+.p-ins{background:#fef9e7;color:#7d4e00;border:1px solid #f9e79f;}
+.p-dis{background:#fdecea;color:#7b241c;border:1px solid #f5b7b1;}
+.p-man{background:#ebf5fb;color:#1a5276;}
+.p-est{background:#f4ecf7;color:#4a235a;}
+.p-work{background:#fef0e6;color:#784212;border:1px solid #f8c471;}
+.p-clean{background:#fff;color:#666;border:1px solid #ddd;}
+
+.recs-table{width:100%;border-collapse:collapse;font-family:sans-serif;margin-bottom:2rem;}
+.recs-table td{padding:10px 14px;border-bottom:1px solid #eee;font-size:13px;vertical-align:top;}
+.recs-table tr:last-child td{border-bottom:none;}
+.rec-num{font-weight:bold;font-size:14px;width:30px;color:#2d6a4f;}
+.rec-urgent .rec-num{color:#c0392b;}
+
+.workorders-section{margin-bottom:2rem;}
+.wo-area-title{font-size:13px;font-weight:bold;font-family:sans-serif;margin-bottom:.5rem;color:#555;}
+.wo-table{width:100%;border-collapse:collapse;font-family:sans-serif;font-size:13px;margin-bottom:1rem;}
+.wo-table th{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#888;text-align:left;padding:6px 10px;border-bottom:2px solid #ddd;}
+.wo-table td{padding:8px 10px;border-bottom:1px solid #eee;}
+
+.sig-row{display:flex;gap:2rem;padding-top:1.5rem;border-top:1px solid #ddd;flex-wrap:wrap;margin-top:2rem;font-family:sans-serif;}
+.sig-block{flex:1;min-width:150px;}
+.sig-line{border-bottom:1px solid #999;height:36px;margin-bottom:4px;}
+.sig-lbl{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#aaa;}
+.footer{font-size:11px;color:#aaa;text-align:center;margin-top:2rem;font-family:sans-serif;font-style:italic;}
+.no-data{font-size:13px;color:#aaa;padding:1rem;text-align:center;border:1px dashed #ddd;border-radius:6px;font-family:sans-serif;}
+@media(max-width:560px){.summary-row{grid-template-columns:repeat(2,1fr);}}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+<div class="page" id="reportPage">
+  <div id="reportContent"><div class="no-data">Loading report data...</div></div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const BBCH_DESC={9:'Buds dormant',53:'Inflorescences visible, bracts unfolding',55:'Inflorescences visible, compact',57:'Inflorescences fully visible',61:'Beginning of flowering',65:'Full flowering (50%)',69:'End of flowering',71:'Fruit set',75:'Berries pea-size',77:'Berries touching',81:'Begin ripening',85:'Softening of berries',89:'Full ripeness'};
+const AREA_COLORS=['#7F77DD','#1D9E75','#D85A30','#378ADD','#BA7517','#D4537E','#2d6a4f','#8B5CF6'];
+const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
+const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
+const supa=(window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
+const urlParams=new URLSearchParams(window.location.search);
+const WINERY_ID=urlParams.get('winery_id');
+
+function fmtShortDate(d){
+  if(!d)return'—';
+  try{
+    const dt=new Date(d+'T00:00:00');
+    return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+String(dt.getFullYear()).slice(2);
+  }catch(e){return d;}
+}
+
+// Φέρνει live δεδομένα (areas/blocks/observations με ημερομηνίες) απευθείας από το Supabase
+async function loadFromSupabaseLive(){
+  if(!supa||!WINERY_ID)return null;
+  try{
+    const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+    const{data:areasRows,error:aErr}=await supa.from('areas').select('*').eq('winery_id',WINERY_ID);
+    if(aErr)throw aErr;
+    const{data:visitsRows,error:vErr}=await supa.from('visits').select('*').eq('winery_id',WINERY_ID).order('visit_date',{ascending:false});
+    if(vErr)throw vErr;
+    const latestVisit=(visitsRows&&visitsRows.length)?visitsRows[0]:null;
+    const visitDateById={};
+    (visitsRows||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
+
+    const withDate=(rows,mapFn)=>(rows||[]).map(r=>mapFn(r,r.observed_date||visitDateById[r.visit_id]||null));
+    const byDateAsc=(x,y)=>{
+      if(!x.date&&!y.date)return 0;
+      if(!x.date)return -1;
+      if(!y.date)return 1;
+      return new Date(x.date)-new Date(y.date);
+    };
+
+    const areas=[];
+    for(const a of (areasRows||[])){
+      const{data:blockRows,error:bErr}=await supa.from('blocks').select('*').eq('area_id',a.id);
+      if(bErr)throw bErr;
+      const blocks=[];
+      for(const b of (blockRows||[])){
+        const[bbchRes,insRes,disRes,manRes,estRes]=await Promise.all([
+          supa.from('bbch_observations').select('*').eq('block_id',b.id),
+          supa.from('insect_observations').select('*').eq('block_id',b.id),
+          supa.from('disease_observations').select('*').eq('block_id',b.id),
+          supa.from('management_observations').select('*').eq('block_id',b.id),
+          supa.from('estimation_observations').select('*').eq('block_id',b.id)
+        ]);
+        const observations=[
+          ...withDate(bbchRes.data,(r,date)=>({type:'bbch',bbch:r.bbch_stage,workOrder:r.work_order,date,note:r.note})),
+          ...withDate(insRes.data,(r,date)=>({type:'insects',presence:r.presence,species:r.species,population:r.population,stages:r.life_stages||[],date,note:r.note})),
+          ...withDate(disRes.data,(r,date)=>({type:'diseases',disease:r.disease,severity:r.severity,date,note:r.note})),
+          ...withDate(manRes.data,(r,date)=>({type:'management',practices:r.practices||[],date,note:r.note})),
+          ...withDate(estRes.data,(r,date)=>({type:'estimations',baume:r.baume,yieldEst:r.yield_est_kg_ha,harvestWindow:r.harvest_window,berryWeight:r.berry_weight_g,quality:r.quality_outlook,date,note:r.note}))
+        ].sort(byDateAsc);
+        blocks.push({
+          id:b.block_code,variety:b.variety||'',yearPlanted:b.year_planted||'',ha:b.hectares||'',
+          orientation:b.orientation||'',observations
+        });
+      }
+      areas.push({
+        name:a.name,gps:a.gps||'',altMin:a.alt_min||'',altMax:a.alt_max||'',
+        rainfall:a.rainfall||'',avgTemp:a.avg_temp||'',soil:a.soil||'',soilPh:a.soil_ph||'',soilNote:a.soil_note||'',
+        blocks
+      });
+    }
+
+    return{
+      header:{
+        winery:winery?winery.name:'',
+        date:latestVisit?latestVisit.visit_date:'',
+        inspector:latestVisit?latestVisit.inspector:'',
+        weather:latestVisit?latestVisit.weather:'',
+        reportNo:latestVisit?latestVisit.report_no:'',
+        nextVisit:latestVisit?latestVisit.next_visit:'',
+        purpose:latestVisit?latestVisit.purpose:'',
+        genObs:latestVisit?latestVisit.general_obs:''
+      },
+      areas
+    };
+  }catch(e){
+    console.error('Live Supabase load failed, falling back:',e);
+    return null;
+  }
+}
+
+// Διορθώσεις ονομάτων ποικιλιών (π.χ. λάθος καταχώρηση παλιότερα)
+const VARIETY_NAME_FIX={'Moschato Fileri':'Moschofilero'};
+
+// Παίρνει το raw variety string ενός block (π.χ. "YND/XNS — Yiannoudi/Xynisteri")
+// και επιστρέφει καθαρά ονόματα ποικιλιών χωρίς ακρωνύμια: ['Yiannoudi','Xynisteri']
+function parseVarietyNames(varietyStr){
+  if(!varietyStr)return['Άγνωστη ποικιλία'];
+  const parts=varietyStr.split('—');
+  const namePart=(parts.length>1?parts[1]:parts[0]).trim();
+  return namePart.split('/').map(s=>s.trim()).map(s=>VARIETY_NAME_FIX[s]||s).filter(Boolean);
+}
+
+// Καθαρό όνομα για εμφάνιση στον πίνακα blocks (π.χ. "Yiannoudi / Xynisteri")
+function displayVariety(varietyStr){
+  return parseVarietyNames(varietyStr).join(' / ');
+}
+
+function colorFor(i){return AREA_COLORS[i%AREA_COLORS.length];}
+
+function fmtDate(d){
+  if(!d)return'—';
+  try{const dt=new Date(d);return dt.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'});}catch(e){return d;}
+}
+
+// Έντομα: βάση πληθυσμού (population). >15 υψηλό, 6-15 μέτριο, 1-5 χαμηλό, presence χωρίς αριθμό → χαμηλό
+function insectLevel(population){
+  const p=parseInt(population)||0;
+  if(p>15)return'red';
+  if(p>=6)return'orange';
+  return'yellow';
+}
+
+// Ασθένειες: βάση το severity dropdown μόνο (κρίση του γεωπόνου, όχι ποσοστό)
+function diseaseLevel(sev){
+  if(!sev)return null;
+  const m=sev.toLowerCase();
+  if(m==='high'||m==='severe')return'red';
+  if(m==='moderate')return'orange';
+  if(m==='low'||m==='trace')return'yellow';
+  return null;
+}
+
+function levelClass(lvl){return lvl==='red'?'sev-red':lvl==='orange'?'sev-orange':'sev-yellow';}
+function levelLabel(lvl){return lvl==='red'?'Υψηλό':lvl==='orange'?'Μέτριο':'Χαμηλό';}
+
+function buildAlerts(areas){
+  const alerts=[];
+  areas.forEach(a=>{
+    a.blocks.forEach(b=>{
+      const insect=latestOfType(b,'insects');
+      if(insect&&insect.presence==='present'){
+        const lvl=insectLevel(insect.population);
+        alerts.push({emoji:'🐛',title:`${insect.species||'Unknown insect'} — ${b.id} · ${a.name}`,sub:`Population: ${insect.population||'—'} · Stage: ${(insect.stages||[]).join(', ')||'—'}${insect.date?' · '+fmtShortDate(insect.date):''}`,lvl});
+      }
+      const disease=latestOfType(b,'diseases');
+      if(disease){
+        const lvl=diseaseLevel(disease.severity);
+        if(lvl){
+          alerts.push({emoji:'🍄',title:`${disease.disease||'Unknown disease'} — ${b.id} · ${a.name}`,sub:`Severity: ${disease.severity}${disease.date?' · '+fmtShortDate(disease.date):''}`,lvl});
+        }
+      }
+    });
+  });
+  return alerts;
+}
+
+function buildWorkOrders(areas){
+  const orders=[];
+  areas.forEach(a=>{
+    a.blocks.forEach(b=>{
+      b.observations.forEach(obs=>{
+        if(obs.type==='bbch'&&obs.workOrder){
+          orders.push({area:a.name,block:b.id,variety:b.variety,bbch:obs.bbch,workOrder:obs.workOrder});
+        }
+      });
+    });
+  });
+  return orders;
+}
+
+// Η πιο πρόσφατη παρατήρηση ενός τύπου για ένα block — ταξινομεί ρητά βάσει
+// της πραγματικής ημερομηνίας (όχι βάσει σειράς καταχώρησης, που μπορεί να
+// διαφέρει αν έγινε backdating μιας παλιότερης παρατήρησης)
+function latestOfType(block,type){
+  const list=block.observations.filter(o=>o.type===type);
+  if(!list.length)return null;
+  return list.slice().sort((a,b)=>{
+    if(!a.date&&!b.date)return 0;
+    if(!a.date)return -1;
+    if(!b.date)return 1;
+    return new Date(a.date)-new Date(b.date);
+  }).pop();
+}
+
+// Ομαδοποίηση των blocks μιας περιοχής ανά (καθαρή) ποικιλία, με χρονολόγιο
+// των τελευταίων 5 BBCH καταχωρήσεων (ανεξαρτήτως ποιο block τις έδωσε)
+function buildVarietySummary(area){
+  const map={};
+  area.blocks.forEach(b=>{
+    const names=parseVarietyNames(b.variety);
+    const bbchEntries=(b.observations||[])
+      .filter(o=>o.type==='bbch'&&o.bbch)
+      .map(o=>({date:o.date||null,bbch:o.bbch}));
+    names.forEach(name=>{
+      if(!map[name])map[name]={entries:[]};
+      map[name].entries.push(...bbchEntries);
+    });
+  });
+  return Object.entries(map).map(([variety,v])=>{
+    const sorted=v.entries.slice().sort((a,b)=>{
+      if(!a.date&&!b.date)return 0;
+      if(!a.date)return -1;
+      if(!b.date)return 1;
+      return new Date(a.date)-new Date(b.date);
+    });
+    return{variety,last5:sorted.slice(-5)};
+  }).sort((a,b)=>a.variety.localeCompare(b.variety));
+}
+
+function obsShortPills(b){
+  const pills=[];
+  const bbch=latestOfType(b,'bbch');
+  if(bbch&&bbch.bbch)pills.push(`<span class="pill p-bbch">BBCH ${bbch.bbch}</span>`);
+
+  const insect=latestOfType(b,'insects');
+  if(insect&&insect.presence==='present'){
+    const lvl=insectLevel(insect.population);
+    pills.push(`<span class="pill ${levelClass(lvl)}">🐛 ${insect.species||'Insect'}</span>`);
+  }else if(insect&&insect.presence==='ambient'){
+    pills.push(`<span class="pill p-clean">🐛 ${insect.species||'Insect'} · ambient</span>`);
+  }
+
+  const disease=latestOfType(b,'diseases');
+  if(disease){
+    const lvl=diseaseLevel(disease.severity);
+    if(lvl)pills.push(`<span class="pill ${levelClass(lvl)}">🍄 ${disease.disease||'Disease'}</span>`);
+  }
+  if(!disease&&b.observations.length>0)pills.push(`<span class="pill p-clean">🍄 Not detected</span>`);
+
+  const mgmt=latestOfType(b,'management');
+  if(mgmt&&(mgmt.practices||[]).length)pills.push(`<span class="pill p-man">${mgmt.practices.slice(0,2).join(', ')}</span>`);
+
+  const est=latestOfType(b,'estimations');
+  if(est&&est.baume)pills.push(`<span class="pill p-est">Baumé ${est.baume}°</span>`);
+
+  if(bbch&&bbch.workOrder)pills.push(`<span class="pill p-work">Work order</span>`);
+
+  return pills.join('')||'<span style="color:#aaa;font-size:12px;">No observations</span>';
+}
+
+function render(data){
+  const h=data.header||{};
+  const areas=data.areas||[];
+  const alerts=buildAlerts(areas);
+  const workOrders=buildWorkOrders(areas);
+  const totalBlocks=areas.reduce((s,a)=>s+a.blocks.length,0);
+  const totalObs=areas.reduce((s,a)=>s+a.blocks.reduce((ss,b)=>ss+b.observations.length,0),0);
+  const bbchVals=[];
+  areas.forEach(a=>a.blocks.forEach(b=>b.observations.forEach(o=>{if(o.type==='bbch'&&o.bbch)bbchVals.push(o.bbch);})));
+  const bbchRange=bbchVals.length?'BBCH '+Math.min(...bbchVals)+'–'+Math.max(...bbchVals):'—';
+
+  const alertsHTML=alerts.length?`
+    <div class="alert-hdr">
+      <span style="font-size:16px;">⚠</span>
+      <span class="alert-hdr-txt">Pest &amp; disease alerts</span>
+      <span class="alert-count-badge">${alerts.length} active</span>
+    </div>
+    <div class="alert-legend">
+      <span><span class="legend-dot" style="background:#f1c40f;"></span>Χαμηλό</span>
+      <span><span class="legend-dot" style="background:#e67e22;"></span>Μέτριο</span>
+      <span><span class="legend-dot" style="background:#e74c3c;"></span>Υψηλό</span>
+    </div>
+    <table class="alert-table">
+      ${alerts.map(al=>`<tr>
+        <td style="width:20px;font-size:15px;">${al.emoji}</td>
+        <td><div style="font-weight:600;">${al.title}</div><div style="color:#888;font-size:12px;margin-top:2px;">${al.sub}</div></td>
+        <td><span class="sev ${levelClass(al.lvl)}">${levelLabel(al.lvl)}</span></td>
+      </tr>`).join('')}
+    </table>`:
+    `<div class="alert-hdr"><span class="alert-hdr-txt" style="color:#1e8449;">No active pest or disease alerts</span></div>
+    <div class="no-alerts">All monitored blocks are within acceptable thresholds at the time of this visit.</div>`;
+
+  const areasHTML=areas.map((a,ai)=>{
+    const col=colorFor(ai);
+    const varietyRows=buildVarietySummary(a);
+    const varietyHTML=varietyRows.length?`<table class="variety-table">
+        <thead><tr><th>Ποικιλία</th><th colspan="5">Ιστορικό BBCH — τελευταίες καταχωρήσεις</th></tr></thead>
+        <tbody>
+          ${varietyRows.map(v=>{
+            const pad=5-v.last5.length;
+            let cells='';
+            for(let i=0;i<pad;i++)cells+='<td></td>';
+            v.last5.forEach(e=>{
+              cells+=`<td style="text-align:center;"><div style="font-size:10px;color:#aaa;margin-bottom:2px;">${fmtShortDate(e.date)}</div><span class="pill p-bbch">BBCH ${e.bbch}</span></td>`;
+            });
+            if(!v.last5.length)cells=`<td colspan="5" style="text-align:center;color:#aaa;">—</td>`;
+            return`<tr><td style="font-weight:600;">${v.variety}</td>${cells}</tr>`;
+          }).join('')}
+        </tbody>
+      </table>`:'';
+    const blockRows=a.blocks.map(b=>`<tr>
+      <td style="font-weight:600;">${b.id}</td>
+      <td>${displayVariety(b.variety)}</td>
+      <td>${b.yearPlanted||'—'}</td>
+      <td>${b.orientation||'—'}</td>
+      <td>${b.ha?b.ha+' ha':'—'}</td>
+      <td>${obsShortPills(b)}</td>
+    </tr>`).join('');
+    return`<div class="area-section">
+      <div class="area-hdr">
+        <div class="area-dot" style="background:${col};"></div>
+        <span class="area-name">${a.name||'Unnamed area'}</span>
+        <span class="area-block-count">${a.blocks.length} block${a.blocks.length!==1?'s':''}</span>
+      </div>
+      <table class="area-info-table">
+        <tr><td class="lbl">GPS</td><td>${a.gps||'—'}</td><td class="lbl">Altitude</td><td>${a.altMin&&a.altMax?a.altMin+'–'+a.altMax+' m':'—'}</td></tr>
+        <tr><td class="lbl">Avg. rainfall</td><td>${a.rainfall?a.rainfall+' mm/yr':'—'}</td><td class="lbl">Avg. temp</td><td>${a.avgTemp?a.avgTemp+' °C':'—'}</td></tr>
+        <tr><td class="lbl">Soil</td><td colspan="3">${a.soil||'—'}${a.soilNote?' · '+a.soilNote:''} ${a.soilPh?'· pH '+a.soilPh:''}</td></tr>
+      </table>
+      ${varietyHTML}
+      ${a.blocks.length?`<table class="blocks-table">
+        <thead><tr><th>Block</th><th>Variety</th><th>Planted</th><th>Orient.</th><th>Area</th><th>Observations</th></tr></thead>
+        <tbody>${blockRows}</tbody>
+      </table>`:'<div class="no-data">No blocks recorded for this area.</div>'}
+    </div>`;
+  }).join('');
+
+  const workOrdersHTML=workOrders.length?`
+    <div class="sec-title">Work orders by block</div>
+    <div class="workorders-section">
+      <table class="wo-table">
+        <thead><tr><th>Block</th><th>Variety</th><th>BBCH stage</th><th>Tasks</th></tr></thead>
+        <tbody>
+          ${workOrders.map(wo=>`<tr>
+            <td style="font-weight:600;">${wo.block}</td>
+            <td>${wo.variety?displayVariety(wo.variety):'—'}</td>
+            <td><span class="pill p-bbch">BBCH ${wo.bbch||'—'}</span></td>
+            <td>${wo.workOrder}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`:'';
+
+  document.getElementById('reportContent').innerHTML=`
+    <div class="report-header">
+      <div class="header-top">
+        <div>
+          <div class="estate-name">${h.winery||'Vineyard Field Report'}</div>
+          <div class="report-subtitle">Agronomist field visit report</div>
+        </div>
+        <div class="report-no">${h.reportNo||'Report'}</div>
+      </div>
+      <table class="meta-table" style="margin-top:1.25rem;">
+        <tr>
+          <td class="lbl">Visit date</td><td>${fmtDate(h.date)}</td>
+          <td class="lbl">Inspector</td><td>${h.inspector||'—'}</td>
+        </tr>
+        <tr>
+          <td class="lbl">Region</td><td>${h.region||'—'}</td>
+          <td class="lbl">Weather</td><td>${h.weather||'—'}</td>
+        </tr>
+        <tr>
+          <td class="lbl">Next visit</td><td>${fmtDate(h.nextVisit)}</td>
+          <td class="lbl">Prepared by</td><td>${h.inspector||'—'}</td>
+        </tr>
+      </table>
+    </div>
+
+    <div class="alert-section">${alertsHTML}</div>
+
+    <div class="sec-title">Executive summary</div>
+    <div class="summary-row">
+      <div class="sum-cell"><div class="sum-val">${areas.length}</div><div class="sum-lbl">Areas</div></div>
+      <div class="sum-cell"><div class="sum-val">${totalBlocks}</div><div class="sum-lbl">Blocks</div></div>
+      <div class="sum-cell"><div class="sum-val">${bbchRange}</div><div class="sum-lbl">Growth stage</div></div>
+      <div class="sum-cell"><div class="sum-val" style="color:${alerts.length>0?'#c0392b':'#27ae60'}">${alerts.length}</div><div class="sum-lbl">Active alerts</div></div>
+    </div>
+
+    ${h.genObs?`<div class="sec-title">General observations</div><div class="gen-obs-box">${h.genObs}</div>`:''}
+
+    <div class="sec-title">Area &amp; block detail</div>
+    ${areas.length?areasHTML:'<div class="no-data">No areas recorded.</div>'}
+
+    ${workOrdersHTML}
+
+    ${h.purpose?`<div class="sec-title">Purpose of visit</div><div class="gen-obs-box" style="margin-bottom:2rem;">${h.purpose}</div>`:''}
+
+    <div class="sig-row">
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-lbl">Inspector signature</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-lbl">Winery manager</div></div>
+      <div class="sig-block"><div class="sig-line"></div><div class="sig-lbl">Next visit confirmed</div></div>
+    </div>
+    <div class="footer">This report was prepared by a certified viticulture consultant. Observations reflect field conditions on the date of visit.</div>
+  `;
+}
+
+(async()=>{
+  const live=await loadFromSupabaseLive();
+  if(live){render(live);return;}
+
+  const saved=localStorage.getItem('vineyardData');
+  if(saved){
+    try{render(JSON.parse(saved));}catch(e){document.getElementById('reportContent').innerHTML='<div class="no-data">Error loading data. Please export data from admin.html first.</div>';}
+  }else{
+    fetch('vineyard-data.json')
+      .then(r=>r.json())
+      .then(d=>render(d))
+      .catch(()=>{document.getElementById('reportContent').innerHTML='<div class="no-data">No data found. Open this report via admin.html (with ?winery_id=... in the link), or export data from admin.html first.</div>';});
+  }
+})();
+</script>
+</body>
+</html>
