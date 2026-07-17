@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reports</title>
+<style>
+  :root{
+    --ink:#f2ede1; --ink-dim:#b9c2b3; --bg:#1d2620; --card:#26312a;
+    --line:#3a473e; --gold:#c99a3e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;min-height:100dvh;}
+  body{padding:32px 20px;}
+  .wrap{max-width:480px;margin:0 auto;}
+  .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);text-align:center;margin:0 0 6px;}
+  h1{font-family:Georgia,serif;font-weight:400;font-size:24px;text-align:center;margin:0 0 32px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:14px;text-decoration:none;color:var(--ink);display:block;transition:border-color .15s;}
+  .card:hover,.card:active{border-color:var(--gold);}
+  .card-icon{font-size:26px;margin-bottom:8px;}
+  .card-title{font-size:16px;font-weight:600;margin-bottom:4px;}
+  .card-desc{font-size:13px;color:var(--ink-dim);line-height:1.4;}
+  .card.disabled{opacity:0.4;pointer-events:none;}
+  .back-link{display:block;text-align:center;margin-top:24px;font-size:13px;color:var(--ink-dim);text-decoration:none;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <p class="eyebrow">Vineyard Reports</p>
+  <h1 id="pageTitle">Επίλεξε report</h1>
+
+  <a class="card" id="growthCard" href="#">
+    <div class="card-icon">🌱</div>
+    <div class="card-title">Ανάπτυξη &amp; Ασθένειες</div>
+    <div class="card-desc">BBCH στάδια ανά ποικιλία, παρατηρήσεις εντόμων/μυκήτων με ειδοποιήσεις.</div>
+  </a>
+
+  <a class="card" id="harvestCard" href="#">
+    <div class="card-icon">🍇</div>
+    <div class="card-title">Προγραμματισμός Τρύγου</div>
+    <div class="card-desc">Χημικές &amp; αγρονομικές αναλύσεις ανά ποικιλία — Baumé, τρυγικό, pH, βάρος ράγας.</div>
+  </a>
+
+  <a class="card" id="workordersCard" href="#">
+    <div class="card-icon">💧</div>
+    <div class="card-title">Εργασίες / Work Orders</div>
+    <div class="card-desc">Άρδευση, κλάδεμα, ψεκασμοί — παρακολούθηση εκκρεμών &amp; ολοκληρωμένων εργασιών.</div>
+  </a>
+
+  <a class="back-link" id="adminLink" href="#">← Πίσω στο admin</a>
+</div>
+
+<script>
+  const urlParams=new URLSearchParams(window.location.search);
+  const WINERY_ID=urlParams.get('winery_id')||'';
+  const q='?winery_id='+WINERY_ID;
+  document.getElementById('growthCard').href='report.html'+q;
+  document.getElementById('harvestCard').href='harvest.html'+q;
+  document.getElementById('workordersCard').href='workorders.html'+q;
+  document.getElementById('adminLink').href='admin.html'+q;
+</script>
+</body>
+</html>

@@ -157,7 +157,7 @@ async function loadFromSupabaseLive(){
           ...withDate(insRes.data,(r,date)=>({type:'insects',presence:r.presence,species:r.species,population:r.population,stages:r.life_stages||[],date,note:r.note})),
           ...withDate(disRes.data,(r,date)=>({type:'diseases',disease:r.disease,severity:r.severity,date,note:r.note})),
           ...withDate(manRes.data,(r,date)=>({type:'management',practices:r.practices||[],date,note:r.note})),
-          ...withDate(estRes.data,(r,date)=>({type:'estimations',baume:r.baume,yieldEst:r.yield_est_kg_ha,harvestWindow:r.harvest_window,berryWeight:r.berry_weight_g,quality:r.quality_outlook,date,note:r.note}))
+          ...withDate(estRes.data,(r,date)=>({type:'estimations',baume:r.baume,tartaricAcid:r.tartaric_acid,ph:r.ph,yieldEst:r.yield_est_kg_ha,harvestWindow:r.harvest_window,berryWeight:r.berry_weight_g,juiceYield:r.juice_yield,quality:r.quality_outlook,date,note:r.note}))
         ].sort(byDateAsc);
         blocks.push({
           id:b.block_code,variety:b.variety||'',yearPlanted:b.year_planted||'',ha:b.hectares||'',

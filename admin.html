@@ -363,10 +363,10 @@ async function pushObservationToSupabase(type,obs,ai,bi){
       row={block_id:blockId,visit_id:visitId,disease:obs.disease||null,severity:obs.severity||null,affected_pct:obs.affectedPct?parseFloat(obs.affectedPct):null,note:obs.note||null,observed_date:obs.date||null};
     }else if(type==='management'){
       table='management_observations';
-      row={block_id:blockId,visit_id:visitId,practices:obs.practices||[],note:obs.note||null,observed_date:obs.date||null};
+      row={block_id:blockId,visit_id:visitId,practices:obs.practices||[],note:obs.note||null,observed_date:obs.date||null,status:'pending'};
     }else if(type==='estimations'){
       table='estimation_observations';
-      row={block_id:blockId,visit_id:visitId,baume:obs.baume?parseFloat(obs.baume):null,yield_est_kg_ha:obs.yieldEst?parseFloat(obs.yieldEst):null,harvest_window:obs.harvestWindow||null,berry_weight_g:obs.berryWeight?parseFloat(obs.berryWeight):null,quality_outlook:obs.quality||null,note:obs.note||null,observed_date:obs.date||null};
+      row={block_id:blockId,visit_id:visitId,baume:obs.baume?parseFloat(obs.baume):null,tartaric_acid:obs.tartaricAcid?parseFloat(obs.tartaricAcid):null,ph:obs.ph?parseFloat(obs.ph):null,yield_est_kg_ha:obs.yieldEst?parseFloat(obs.yieldEst):null,harvest_window:obs.harvestWindow||null,berry_weight_g:obs.berryWeight?parseFloat(obs.berryWeight):null,juice_yield:obs.juiceYield?parseFloat(obs.juiceYield):null,quality_outlook:obs.quality||null,note:obs.note||null,observed_date:obs.date||null};
     }else return;
     const{data,error}=await supabaseClient.from(table).insert(row).select('id').single();
     if(error)throw error;
@@ -523,7 +523,7 @@ function importData(){
     };r.readAsText(e.target.files[0]);
   };inp.click();
 }
-function generateReport(){saveState();window.open('report.html?winery_id='+WINERY_ID,'_blank');}
+function generateReport(){saveState();window.open('reports.html?winery_id='+WINERY_ID,'_blank');}
 
 function updateMetrics(){
   const ta=state.areas.length;
@@ -730,7 +730,7 @@ function obsOneLiner(obs){
   if(obs.type==='insects')return`${obs.species||'—'} · ${obs.presence||''} · pop. ${obs.population||'—'} · ${(obs.stages||[]).join(', ')||'—'}`;
   if(obs.type==='diseases')return`${obs.disease||'—'} · ${obs.severity||'—'}${obs.affectedPct?' · '+obs.affectedPct+'% affected':''}`;
   if(obs.type==='management')return`${(obs.practices||[]).join(', ')||'—'}`;
-  if(obs.type==='estimations')return`Baumé ${obs.baume||'—'}° · Yield ${obs.yieldEst||'—'} kg/ha · Berry ${obs.berryWeight||'—'}g`;
+  if(obs.type==='estimations')return`Baumé ${obs.baume||'—'}° · Berry ${obs.berryWeight||'—'}g · Yield ${obs.juiceYield||'—'}mg/g`;
   return'';
 }
 
@@ -761,13 +761,20 @@ function obsFormHTML(ai,bi,d){
       </div>`,
     management:`<div class="flbl" style="margin-bottom:6px;">Practices</div>
       <div class="stage-row">${MGMT.map(m=>`<button type="button" class="stg${(d.practices||[]).includes(m)?' on':''}" onclick="toggleStg(this)">${m}</button>`).join('')}</div>`,
-    estimations:`<div class="g2" style="margin-bottom:10px;">
+    estimations:`<div class="flbl" style="margin-bottom:6px;">Χημικές αναλύσεις</div>
+      <div class="g3" style="margin-bottom:10px;">
         <div class="field"><span class="flbl">Baumé (°Bé)</span><input class="finp" id="of_baume" value="${d.baume||''}"></div>
-        <div class="field"><span class="flbl">Yield (kg/ha)</span><input class="finp" id="of_yield" type="number" value="${d.yieldEst||''}"></div>
+        <div class="field"><span class="flbl">Τρυγικό οξύ (g/L)</span><input class="finp" id="of_tartaric" type="number" step="0.1" value="${d.tartaricAcid||''}"></div>
+        <div class="field"><span class="flbl">pH</span><input class="finp" id="of_ph" type="number" step="0.01" value="${d.ph||''}"></div>
+      </div>
+      <div class="flbl" style="margin-bottom:6px;">Αγρονομικές αναλύσεις</div>
+      <div class="g2" style="margin-bottom:10px;">
+        <div class="field"><span class="flbl">Βάρος ράγας (g)</span><input class="finp" id="of_berry" value="${d.berryWeight||''}"></div>
+        <div class="field"><span class="flbl">Απόδοση χυμού (mg/g)</span><input class="finp" id="of_juiceyield" type="number" step="0.1" value="${d.juiceYield||''}"></div>
       </div>
       <div class="g2">
+        <div class="field"><span class="flbl">Yield estimate (kg/ha)</span><input class="finp" id="of_yield" type="number" value="${d.yieldEst||''}"></div>
         <div class="field"><span class="flbl">Harvest window</span><input class="finp" id="of_harvest" value="${d.harvestWindow||''}"></div>
-        <div class="field"><span class="flbl">Berry weight (g)</span><input class="finp" id="of_berry" value="${d.berryWeight||''}"></div>
       </div>
       <div class="field" style="margin-top:10px;"><span class="flbl">Quality outlook</span>
         <select class="fsel" id="of_quality"><option value="">Select...</option>${QUALITY.map(q=>`<option>${q}</option>`).join('')}</select>
@@ -806,7 +813,7 @@ async function saveObs(t,ai,bi){
   if(t==='insects'){obs.presence=document.getElementById('of_presence').value;obs.species=document.getElementById('of_species').value;obs.population=document.getElementById('of_pop').value;obs.stages=getSelectedStgs();}
   if(t==='diseases'){obs.disease=document.getElementById('of_disease').value;obs.severity=document.getElementById('of_severity').value;obs.affectedPct=document.getElementById('of_pct').value;}
   if(t==='management')obs.practices=getSelectedStgs();
-  if(t==='estimations'){obs.baume=document.getElementById('of_baume').value;obs.yieldEst=document.getElementById('of_yield').value;obs.harvestWindow=document.getElementById('of_harvest').value;obs.berryWeight=document.getElementById('of_berry').value;obs.quality=document.getElementById('of_quality').value;}
+  if(t==='estimations'){obs.baume=document.getElementById('of_baume').value;obs.tartaricAcid=document.getElementById('of_tartaric').value;obs.ph=document.getElementById('of_ph').value;obs.berryWeight=document.getElementById('of_berry').value;obs.juiceYield=document.getElementById('of_juiceyield').value;obs.yieldEst=document.getElementById('of_yield').value;obs.harvestWindow=document.getElementById('of_harvest').value;obs.quality=document.getElementById('of_quality').value;}
   state.areas[ai].blocks[bi].observations.push(obs);
   openBlockDetail(ai,bi);renderAreas();
   await pushObservationToSupabase(t,obs,ai,bi);

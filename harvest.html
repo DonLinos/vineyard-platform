@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Προγραμματισμός Τρύγου</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --ink-dim:#666; --ink-faint:#999;
+    --bg:#faf9f6; --card:#fff; --line:#e8e6e0; --gold:#c99a3e;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:Georgia,"Times New Roman",serif;line-height:1.5;}
+  .topbar{background:#1a1a1a;color:#fff;padding:14px 20px;position:sticky;top:0;z-index:50;font-family:-apple-system,sans-serif;}
+  .topbar-title{font-size:15px;font-weight:600;}
+  .topbar-sub{font-size:12px;color:#bbb;margin-top:2px;}
+  .wrap{max-width:960px;margin:0 auto;padding:1rem 1.25rem 4rem;}
+  .back-link{display:inline-block;margin:1rem 0;font-size:13px;color:var(--ink-dim);text-decoration:none;font-family:-apple-system,sans-serif;}
+  .variety-block{margin-bottom:2.5rem;}
+  .variety-title{font-size:22px;font-weight:700;margin-bottom:14px;padding-bottom:8px;border-bottom:2px solid var(--ink);}
+  .section-hdr{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:1.25rem 0 8px;font-family:-apple-system,sans-serif;}
+  .section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);}
+  .toggle-row{display:flex;gap:6px;}
+  .toggle-btn{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:5px 13px;font-size:12px;cursor:pointer;color:var(--ink-dim);font-family:-apple-system,sans-serif;}
+  .toggle-btn.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .matrix-scroll{overflow-x:auto;border:1px solid var(--line);border-radius:8px;}
+  table.matrix{border-collapse:collapse;width:100%;font-family:-apple-system,sans-serif;font-size:13px;}
+  table.matrix th,table.matrix td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:8px 10px;text-align:center;white-space:nowrap;}
+  table.matrix th{background:#f5f4f0;font-size:11px;color:var(--ink-dim);font-weight:600;}
+  table.matrix td:first-child,table.matrix th:first-child{text-align:left;position:sticky;left:0;background:#fff;font-weight:600;z-index:1;}
+  table.matrix th:first-child{background:#f5f4f0;z-index:2;}
+  table.matrix tr:last-child td{border-bottom:none;}
+  table.matrix td:last-child,table.matrix th:last-child{border-right:none;}
+  .cell-val{cursor:pointer;display:inline-block;min-width:34px;}
+  .cell-empty{color:#ddd;}
+  .cell-detail{font-size:10px;color:var(--ink-faint);margin-top:2px;line-height:1.3;}
+  .no-data{text-align:center;color:var(--ink-faint);padding:3rem 1rem;font-size:14px;font-family:-apple-system,sans-serif;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title" id="topbarTitle">Προγραμματισμός Τρύγου</div>
+  <div class="topbar-sub" id="topbarSub">Φόρτωση...</div>
+</div>
+
+<div class="wrap">
+  <a class="back-link" href="#" id="backLink">← Πίσω στα reports</a>
+  <div id="content"><div class="no-data">Φόρτωση δεδομένων...</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
+const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
+const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const urlParams=new URLSearchParams(window.location.search);
+const WINERY_ID=urlParams.get('winery_id');
+document.getElementById('backLink').href='reports.html?winery_id='+WINERY_ID;
+
+const VARIETY_NAME_FIX={'Moschato Fileri':'Moschofilero'};
+function parseVarietyNames(varietyStr){
+  if(!varietyStr)return['Άγνωστη ποικιλία'];
+  const parts=varietyStr.split('—');
+  const namePart=(parts.length>1?parts[1]:parts[0]).trim();
+  return namePart.split('/').map(s=>s.trim()).map(s=>VARIETY_NAME_FIX[s]||s).filter(Boolean);
+}
+
+function fmtShortDate(d){
+  if(!d)return'—';
+  const dt=new Date(d+'T00:00:00');
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0');
+}
+
+let varietyData={}; // { varietyName: { blockName: { date: {baume,tartaricAcid,ph,berryWeight,juiceYield} } } }
+let chemMetric='baume';
+let agroMetric='berryWeight';
+
+async function loadData(){
+  const{data:{session}}=await supa.auth.getSession();
+  if(!session){window.location.href='login.html';return;}
+  if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id.</div>';return;}
+
+  const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+  document.getElementById('topbarTitle').textContent=(winery?winery.name:'')+' — Τρύγος';
+  document.getElementById('topbarSub').textContent='Προγραμματισμός Τρύγου';
+
+  const{data:visitsRows}=await supa.from('visits').select('id,visit_date').eq('winery_id',WINERY_ID);
+  const visitDateById={};
+  (visitsRows||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
+
+  const{data:areasRows}=await supa.from('areas').select('id').eq('winery_id',WINERY_ID);
+  const areaIds=(areasRows||[]).map(a=>a.id);
+  let blocksRows=[];
+  if(areaIds.length){
+    const{data}=await supa.from('blocks').select('id,block_code,variety').in('area_id',areaIds);
+    blocksRows=data||[];
+  }
+  const blockById={};
+  blocksRows.forEach(b=>{blockById[b.id]=b;});
+  const blockIds=blocksRows.map(b=>b.id);
+
+  let estRows=[];
+  if(blockIds.length){
+    const{data,error}=await supa.from('estimation_observations').select('*').in('block_id',blockIds);
+    if(error){console.error(error);document.getElementById('content').innerHTML='<div class="no-data">Σφάλμα φόρτωσης.</div>';return;}
+    estRows=data||[];
+  }
+
+  varietyData={};
+  estRows.forEach(r=>{
+    const block=blockById[r.block_id];
+    if(!block)return;
+    const date=r.observed_date||visitDateById[r.visit_id]||null;
+    if(!date)return;
+    const names=parseVarietyNames(block.variety);
+    names.forEach(variety=>{
+      if(!varietyData[variety])varietyData[variety]={};
+      if(!varietyData[variety][block.block_code])varietyData[variety][block.block_code]={};
+      varietyData[variety][block.block_code][date]={
+        baume:r.baume, tartaricAcid:r.tartaric_acid, ph:r.ph,
+        berryWeight:r.berry_weight_g, juiceYield:r.juice_yield
+      };
+    });
+  });
+
+  render();
+}
+
+function setChemMetric(m){chemMetric=m;render();}
+function setAgroMetric(m){agroMetric=m;render();}
+
+function toggleCell(el){
+  el.classList.toggle('expanded');
+  const detail=el.querySelector('.cell-detail');
+  if(detail)detail.style.display=el.classList.contains('expanded')?'block':'none';
+}
+
+const CHEM_LABELS={baume:'Baumé', tartaricAcid:'Τρυγικό οξύ', ph:'pH'};
+const CHEM_UNITS={baume:'°', tartaricAcid:'g/L', ph:''};
+const AGRO_LABELS={berryWeight:'Βάρος ράγας', juiceYield:'Απόδοση χυμού'};
+const AGRO_UNITS={berryWeight:'g', juiceYield:'mg/g'};
+
+function buildMatrixHTML(blockMap, metric, allFields, labels, units){
+  const blocks=Object.keys(blockMap).sort();
+  const allDates=new Set();
+  blocks.forEach(b=>Object.keys(blockMap[b]).forEach(d=>allDates.add(d)));
+  const dates=[...allDates].sort();
+
+  if(!dates.length)return'<div class="no-data">Δεν υπάρχουν δεδομένα.</div>';
+
+  return `<div class="matrix-scroll"><table class="matrix">
+    <thead><tr><th>Block</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}</tr></thead>
+    <tbody>
+      ${blocks.map(b=>`<tr>
+        <td>${b}</td>
+        ${dates.map(d=>{
+          const rec=blockMap[b][d];
+          if(!rec||rec[metric]===null||rec[metric]===undefined)return`<td><span class="cell-empty">—</span></td>`;
+          const otherFields=allFields.filter(f=>f!==metric);
+          const detailHTML=otherFields.map(f=>rec[f]!==null&&rec[f]!==undefined?`${labels[f]}: ${rec[f]}${units[f]}`:null).filter(Boolean).join('<br>');
+          return `<td><div class="cell-val" onclick="toggleCell(this.parentElement)">${rec[metric]}${units[metric]}
+            <div class="cell-detail" style="display:none;">${detailHTML||'—'}</div>
+          </div></td>`;
+        }).join('')}
+      </tr>`).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+function render(){
+  const varieties=Object.keys(varietyData).sort();
+  if(!varieties.length){
+    document.getElementById('content').innerHTML='<div class="no-data">Δεν υπάρχουν ακόμα δεδομένα δειγματοληψιών (Estimations) για κανένα block.</div>';
+    return;
+  }
+
+  const html=varieties.map(variety=>{
+    const blockMap=varietyData[variety];
+    return `<div class="variety-block">
+      <div class="variety-title">${variety}</div>
+
+      <div class="section-hdr">
+        <span class="section-title">Χημικές αναλύσεις</span>
+        <div class="toggle-row">
+          ${['baume','tartaricAcid','ph'].map(m=>`<button class="toggle-btn${chemMetric===m?' on':''}" onclick="setChemMetric('${m}')">${CHEM_LABELS[m]}</button>`).join('')}
+        </div>
+      </div>
+      ${buildMatrixHTML(blockMap, chemMetric, ['baume','tartaricAcid','ph'], CHEM_LABELS, CHEM_UNITS)}
+
+      <div class="section-hdr">
+        <span class="section-title">Αγρονομικές αναλύσεις</span>
+        <div class="toggle-row">
+          ${['berryWeight','juiceYield'].map(m=>`<button class="toggle-btn${agroMetric===m?' on':''}" onclick="setAgroMetric('${m}')">${AGRO_LABELS[m]}</button>`).join('')}
+        </div>
+      </div>
+      ${buildMatrixHTML(blockMap, agroMetric, ['berryWeight','juiceYield'], AGRO_LABELS, AGRO_UNITS)}
+    </div>`;
+  }).join('');
+
+  document.getElementById('content').innerHTML=html;
+}
+
+loadData();
+</script>
+
+</body>
+</html>

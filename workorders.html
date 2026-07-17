@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Εργασίες — Work Orders</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --ink-dim:#666; --ink-faint:#999;
+    --bg:#faf9f6; --card:#fff; --line:#e8e6e0;
+    --gold:#c99a3e; --green:#2d6a4f; --green-bg:#eaf5ef;
+    --pending-bg:#fff; --pending-line:#ddd;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  .topbar{background:#1a1a1a;color:#fff;padding:14px 20px;position:sticky;top:0;z-index:50;}
+  .topbar-title{font-size:15px;font-weight:600;}
+  .topbar-sub{font-size:12px;color:#bbb;margin-top:2px;}
+  .wrap{max-width:720px;margin:0 auto;padding:1rem 1.25rem 3rem;}
+  .summary-row{display:flex;gap:8px;flex-wrap:wrap;margin:1rem 0 1.5rem;}
+  .summary-chip{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;flex:1;min-width:120px;}
+  .summary-chip .num{font-size:20px;font-weight:700;}
+  .summary-chip .lbl{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.05em;margin-top:2px;}
+  .filter-row{display:flex;gap:8px;margin-bottom:1.5rem;}
+  .filter-btn{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:7px 16px;font-size:13px;cursor:pointer;color:var(--ink-dim);}
+  .filter-btn.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .practice-section{margin-bottom:1.75rem;}
+  .practice-hdr{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim);margin-bottom:8px;display:flex;align-items:center;gap:8px;}
+  .practice-count{background:var(--line);color:var(--ink-dim);border-radius:10px;padding:1px 8px;font-size:11px;font-weight:600;}
+  .wo-card{background:var(--pending-bg);border:1px solid var(--pending-line);border-radius:10px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;transition:background .15s,border-color .15s;}
+  .wo-card:hover{border-color:#ccc;}
+  .wo-card.done{background:var(--green-bg);border-color:#b7dcc5;}
+  .wo-check{width:22px;height:22px;border-radius:50%;border:2px solid var(--pending-line);flex-shrink:0;margin-top:1px;display:flex;align-items:center;justify-content:center;font-size:13px;color:#fff;transition:all .15s;}
+  .wo-card.done .wo-check{background:var(--green);border-color:var(--green);}
+  .wo-body{flex:1;min-width:0;}
+  .wo-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;flex-wrap:wrap;}
+  .wo-block{font-weight:600;font-size:14px;}
+  .wo-date{font-size:12px;color:var(--ink-faint);white-space:nowrap;}
+  .wo-tags{margin-top:4px;display:flex;gap:5px;flex-wrap:wrap;}
+  .wo-tag{font-size:10px;background:#f0eeff;color:#5b21b6;border-radius:4px;padding:2px 6px;}
+  .wo-card.done .wo-tag{background:#d7ecdf;color:#1b4332;}
+  .wo-note{font-size:12px;color:var(--ink-dim);margin-top:4px;}
+  .wo-completed{font-size:11px;color:var(--green);margin-top:4px;font-weight:600;}
+  .no-data{text-align:center;color:var(--ink-faint);padding:3rem 1rem;font-size:14px;}
+  .back-link{display:inline-block;margin-bottom:1rem;font-size:13px;color:var(--ink-dim);text-decoration:none;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title" id="topbarTitle">Εργασίες — Work Orders</div>
+  <div class="topbar-sub" id="topbarSub">Φόρτωση...</div>
+</div>
+
+<div class="wrap">
+  <a class="back-link" href="#" id="backLink">← Πίσω στα reports</a>
+  <div id="content"><div class="no-data">Φόρτωση δεδομένων...</div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
+const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
+const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const urlParams=new URLSearchParams(window.location.search);
+const WINERY_ID=urlParams.get('winery_id');
+document.getElementById('backLink').href='reports.html?winery_id='+WINERY_ID;
+
+let allOrders=[];
+let currentFilter='all';
+
+function fmtDate(d){
+  if(!d)return'—';
+  const dt=new Date(d+'T00:00:00');
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+}
+
+async function requireAuthAndLoad(){
+  const{data:{session}}=await supa.auth.getSession();
+  if(!session){window.location.href='login.html';return;}
+  if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id — επίστρεψε στη σύνδεση.</div>';return;}
+
+  const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+  document.getElementById('topbarTitle').textContent=(winery?winery.name:'')+' — Εργασίες';
+  document.getElementById('topbarSub').textContent='Work Orders';
+
+  const{data:visitsRows}=await supa.from('visits').select('id,visit_date').eq('winery_id',WINERY_ID);
+  const visitDateById={};
+  (visitsRows||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
+
+  const{data:areasRows}=await supa.from('areas').select('id,name').eq('winery_id',WINERY_ID);
+  const areaNameById={};
+  (areasRows||[]).forEach(a=>{areaNameById[a.id]=a.name;});
+
+  const areaIds=(areasRows||[]).map(a=>a.id);
+  let blocksRows=[];
+  if(areaIds.length){
+    const{data}=await supa.from('blocks').select('id,block_code,area_id').in('area_id',areaIds);
+    blocksRows=data||[];
+  }
+  const blockInfoById={};
+  blocksRows.forEach(b=>{blockInfoById[b.id]={code:b.block_code,areaName:areaNameById[b.area_id]||''};});
+
+  const blockIds=blocksRows.map(b=>b.id);
+  let mgmtRows=[];
+  if(blockIds.length){
+    const{data,error}=await supa.from('management_observations').select('*').in('block_id',blockIds);
+    if(error){console.error(error);document.getElementById('content').innerHTML='<div class="no-data">Σφάλμα φόρτωσης.</div>';return;}
+    mgmtRows=data||[];
+  }
+
+  allOrders=mgmtRows.map(r=>({
+    id:r.id,
+    blockCode:(blockInfoById[r.block_id]||{}).code||'—',
+    areaName:(blockInfoById[r.block_id]||{}).areaName||'',
+    practices:r.practices||[],
+    note:r.note,
+    date:r.observed_date||visitDateById[r.visit_id]||null,
+    status:r.status||'pending',
+    completedDate:r.completed_date
+  }));
+
+  render();
+}
+
+async function toggleDone(id){
+  const order=allOrders.find(o=>o.id===id);
+  if(!order)return;
+  const newStatus=order.status==='done'?'pending':'done';
+  const newCompletedDate=newStatus==='done'?new Date().toISOString().slice(0,10):null;
+  const{error}=await supa.from('management_observations').update({status:newStatus,completed_date:newCompletedDate}).eq('id',id);
+  if(error){alert('Σφάλμα ενημέρωσης: '+error.message);return;}
+  order.status=newStatus;
+  order.completedDate=newCompletedDate;
+  render();
+}
+
+function setFilter(f){currentFilter=f;render();}
+
+function render(){
+  const doneCount=allOrders.filter(o=>o.status==='done').length;
+  const pendingCount=allOrders.length-doneCount;
+  const irrigationCount=allOrders.filter(o=>o.practices.includes('Irrigation')).length;
+  const irrigationDone=allOrders.filter(o=>o.practices.includes('Irrigation')&&o.status==='done').length;
+
+  let filtered=allOrders;
+  if(currentFilter==='pending')filtered=allOrders.filter(o=>o.status==='pending');
+  if(currentFilter==='done')filtered=allOrders.filter(o=>o.status==='done');
+
+  const groups={};
+  filtered.forEach(o=>{
+    const practices=o.practices.length?o.practices:['Χωρίς κατηγορία'];
+    practices.forEach(p=>{
+      if(!groups[p])groups[p]=[];
+      groups[p].push(o);
+    });
+  });
+  const sortedGroups=Object.entries(groups).sort((a,b)=>b[1].length-a[1].length);
+
+  const html=`
+    <div class="summary-row">
+      <div class="summary-chip"><div class="num">${pendingCount}</div><div class="lbl">Εκκρεμούν</div></div>
+      <div class="summary-chip"><div class="num">${doneCount}</div><div class="lbl">Ολοκληρώθηκαν</div></div>
+      <div class="summary-chip"><div class="num">${irrigationDone}/${irrigationCount}</div><div class="lbl">Ποτίσματα</div></div>
+    </div>
+    <div class="filter-row">
+      <button class="filter-btn${currentFilter==='all'?' on':''}" onclick="setFilter('all')">Όλα (${allOrders.length})</button>
+      <button class="filter-btn${currentFilter==='pending'?' on':''}" onclick="setFilter('pending')">Εκκρεμούν (${pendingCount})</button>
+      <button class="filter-btn${currentFilter==='done'?' on':''}" onclick="setFilter('done')">Έγιναν (${doneCount})</button>
+    </div>
+    ${sortedGroups.length?sortedGroups.map(([practice,orders])=>`
+      <div class="practice-section">
+        <div class="practice-hdr">${practice}<span class="practice-count">${orders.length}</span></div>
+        ${orders.map(o=>`
+          <div class="wo-card${o.status==='done'?' done':''}" onclick="toggleDone('${o.id}')">
+            <div class="wo-check">${o.status==='done'?'✓':''}</div>
+            <div class="wo-body">
+              <div class="wo-top">
+                <div class="wo-block">${o.blockCode}${o.areaName?' · '+o.areaName:''}</div>
+                <div class="wo-date">${fmtDate(o.date)}</div>
+              </div>
+              <div class="wo-tags">${o.practices.map(p=>`<span class="wo-tag">${p}</span>`).join('')}</div>
+              ${o.note?`<div class="wo-note">${o.note}</div>`:''}
+              ${o.status==='done'&&o.completedDate?`<div class="wo-completed">✓ Έγινε ${fmtDate(o.completedDate)}</div>`:''}
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join(''):'<div class="no-data">Δεν υπάρχουν εργασίες σε αυτή την κατηγορία.</div>'}
+  `;
+  document.getElementById('content').innerHTML=html;
+}
+
+requireAuthAndLoad();
+</script>
+
+</body>
+</html>
