@@ -141,6 +141,10 @@ async function loadFromSupabaseLive(){
 
     const areas=[];
     for(const a of (areasRows||[])){
+      const{data:vyRows,error:vyErr}=await supa.from('vineyards').select('*').eq('area_id',a.id);
+      if(vyErr)throw vyErr;
+      const vineyardById={};
+      (vyRows||[]).forEach(v=>{vineyardById[v.id]={code:v.vineyard_code,grower:v.grower||''};});
       const{data:blockRows,error:bErr}=await supa.from('blocks').select('*').eq('area_id',a.id);
       if(bErr)throw bErr;
       const blocks=[];
@@ -159,9 +163,11 @@ async function loadFromSupabaseLive(){
           ...withDate(manRes.data,(r,date)=>({type:'management',practices:r.practices||[],date,note:r.note})),
           ...withDate(estRes.data,(r,date)=>({type:'estimations',baume:r.baume,tartaricAcid:r.tartaric_acid,ph:r.ph,yieldEst:r.yield_est_kg_ha,harvestWindow:r.harvest_window,berryWeight:r.berry_weight_g,juiceYield:r.juice_yield,quality:r.quality_outlook,date,note:r.note}))
         ].sort(byDateAsc);
+        const vy=vineyardById[b.vineyard_id]||{code:'',grower:''};
         blocks.push({
           id:b.block_code,variety:b.variety||'',yearPlanted:b.year_planted||'',ha:b.hectares||'',
-          orientation:b.orientation||'',observations
+          orientation:b.orientation||'',observations,
+          vineyardCode:vy.code,vineyardGrower:vy.grower
         });
       }
       areas.push({
@@ -242,13 +248,13 @@ function buildAlerts(areas){
       const insect=latestOfType(b,'insects');
       if(insect&&insect.presence==='present'){
         const lvl=insectLevel(insect.population);
-        alerts.push({emoji:'🐛',title:`${insect.species||'Unknown insect'} — ${b.id} · ${a.name}`,sub:`Population: ${insect.population||'—'} · Stage: ${(insect.stages||[]).join(', ')||'—'}${insect.date?' · '+fmtShortDate(insect.date):''}`,lvl});
+        alerts.push({emoji:'🐛',title:`${insect.species||'Unknown insect'} — ${b.vineyardCode?b.vineyardCode+' / ':''}${b.id} · ${a.name}`,sub:`Population: ${insect.population||'—'} · Stage: ${(insect.stages||[]).join(', ')||'—'}${insect.date?' · '+fmtShortDate(insect.date):''}`,lvl});
       }
       const disease=latestOfType(b,'diseases');
       if(disease){
         const lvl=diseaseLevel(disease.severity);
         if(lvl){
-          alerts.push({emoji:'🍄',title:`${disease.disease||'Unknown disease'} — ${b.id} · ${a.name}`,sub:`Severity: ${disease.severity}${disease.date?' · '+fmtShortDate(disease.date):''}`,lvl});
+          alerts.push({emoji:'🍄',title:`${disease.disease||'Unknown disease'} — ${b.vineyardCode?b.vineyardCode+' / ':''}${b.id} · ${a.name}`,sub:`Severity: ${disease.severity}${disease.date?' · '+fmtShortDate(disease.date):''}`,lvl});
         }
       }
     });
@@ -262,7 +268,7 @@ function buildWorkOrders(areas){
     a.blocks.forEach(b=>{
       b.observations.forEach(obs=>{
         if(obs.type==='bbch'&&obs.workOrder){
-          orders.push({area:a.name,block:b.id,variety:b.variety,bbch:obs.bbch,workOrder:obs.workOrder});
+          orders.push({area:a.name,vineyard:b.vineyardCode,block:b.id,variety:b.variety,bbch:obs.bbch,workOrder:obs.workOrder});
         }
       });
     });
@@ -391,6 +397,7 @@ function render(data){
         </tbody>
       </table>`:'';
     const blockRows=a.blocks.map(b=>`<tr>
+      <td>${b.vineyardCode||'—'}${b.vineyardGrower?' <span style="color:#aaa;">('+b.vineyardGrower+')</span>':''}</td>
       <td style="font-weight:600;">${b.id}</td>
       <td>${displayVariety(b.variety)}</td>
       <td>${b.yearPlanted||'—'}</td>
@@ -411,7 +418,7 @@ function render(data){
       </table>
       ${varietyHTML}
       ${a.blocks.length?`<table class="blocks-table">
-        <thead><tr><th>Block</th><th>Variety</th><th>Planted</th><th>Orient.</th><th>Area</th><th>Observations</th></tr></thead>
+        <thead><tr><th>Vineyard</th><th>Block</th><th>Variety</th><th>Planted</th><th>Orient.</th><th>Area</th><th>Observations</th></tr></thead>
         <tbody>${blockRows}</tbody>
       </table>`:'<div class="no-data">No blocks recorded for this area.</div>'}
     </div>`;
@@ -421,9 +428,10 @@ function render(data){
     <div class="sec-title">Work orders by block</div>
     <div class="workorders-section">
       <table class="wo-table">
-        <thead><tr><th>Block</th><th>Variety</th><th>BBCH stage</th><th>Tasks</th></tr></thead>
+        <thead><tr><th>Vineyard</th><th>Block</th><th>Variety</th><th>BBCH stage</th><th>Tasks</th></tr></thead>
         <tbody>
           ${workOrders.map(wo=>`<tr>
+            <td>${wo.vineyard||'—'}</td>
             <td style="font-weight:600;">${wo.block}</td>
             <td>${wo.variety?displayVariety(wo.variety):'—'}</td>
             <td><span class="pill p-bbch">BBCH ${wo.bbch||'—'}</span></td>

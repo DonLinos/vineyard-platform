@@ -93,13 +93,18 @@ async function requireAuthAndLoad(){
   (areasRows||[]).forEach(a=>{areaNameById[a.id]=a.name;});
 
   const areaIds=(areasRows||[]).map(a=>a.id);
+  let vineyardsRows=[];
   let blocksRows=[];
   if(areaIds.length){
-    const{data}=await supa.from('blocks').select('id,block_code,area_id').in('area_id',areaIds);
+    const{data:vd}=await supa.from('vineyards').select('id,vineyard_code').in('area_id',areaIds);
+    vineyardsRows=vd||[];
+    const{data}=await supa.from('blocks').select('id,block_code,area_id,vineyard_id').in('area_id',areaIds);
     blocksRows=data||[];
   }
+  const vineyardCodeById={};
+  vineyardsRows.forEach(v=>{vineyardCodeById[v.id]=v.vineyard_code;});
   const blockInfoById={};
-  blocksRows.forEach(b=>{blockInfoById[b.id]={code:b.block_code,areaName:areaNameById[b.area_id]||''};});
+  blocksRows.forEach(b=>{blockInfoById[b.id]={code:b.block_code,vineyardCode:vineyardCodeById[b.vineyard_id]||'',areaName:areaNameById[b.area_id]||''};});
 
   const blockIds=blocksRows.map(b=>b.id);
   let mgmtRows=[];
@@ -112,6 +117,7 @@ async function requireAuthAndLoad(){
   allOrders=mgmtRows.map(r=>({
     id:r.id,
     blockCode:(blockInfoById[r.block_id]||{}).code||'—',
+    vineyardCode:(blockInfoById[r.block_id]||{}).vineyardCode||'',
     areaName:(blockInfoById[r.block_id]||{}).areaName||'',
     practices:r.practices||[],
     note:r.note,
@@ -176,7 +182,7 @@ function render(){
             <div class="wo-check">${o.status==='done'?'✓':''}</div>
             <div class="wo-body">
               <div class="wo-top">
-                <div class="wo-block">${o.blockCode}${o.areaName?' · '+o.areaName:''}</div>
+                <div class="wo-block">${o.vineyardCode?o.vineyardCode+' / ':''}${o.blockCode}${o.areaName?' · '+o.areaName:''}</div>
                 <div class="wo-date">${fmtDate(o.date)}</div>
               </div>
               <div class="wo-tags">${o.practices.map(p=>`<span class="wo-tag">${p}</span>`).join('')}</div>

@@ -63,6 +63,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .blk-obs{font-size:11px;padding:2px 7px;border-radius:99px;background:#e8f4ed;color:#1b4332;font-weight:500;}
 .blk-actions{display:flex;gap:5px;align-items:center;}
 
+.vineyards-lbl{font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.07em;margin:.75rem 0 .5rem;padding-top:.75rem;border-top:1px solid #eee;}
+.vineyard-card{border:1px solid #e5e5e5;border-radius:10px;margin-bottom:8px;overflow:hidden;background:#fdfdfc;}
+.vineyard-header{display:flex;align-items:center;gap:8px;padding:9px 12px;background:#f5f4f0;cursor:pointer;user-select:none;}
+.vineyard-header:hover{background:#efeee9;}
+.vy-code{font-size:13px;font-weight:600;}
+.vy-grower{font-size:11px;color:#888;flex:1;}
+.vy-meta{font-size:11px;color:#aaa;}
+.vineyard-body{padding:8px 10px 10px;}
+.vy-actions{display:flex;gap:5px;align-items:center;}
+
 .obs-tabs{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:1rem;}
 .otab{font-size:12px;padding:5px 12px;border-radius:99px;border:1px solid #ddd;background:#fff;color:#555;cursor:pointer;}
 .otab.on{background:#2d6a4f;border-color:#2d6a4f;color:#fff;font-weight:500;}
@@ -84,7 +94,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:1.25rem;}
 .work-order-box{background:#fff8f0;border:1px solid #fcd9b0;border-radius:8px;padding:12px;margin-top:10px;}
 .wo-lbl{font-size:11px;font-weight:600;color:#e65100;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px;}
-.metric-row{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1.25rem;}
+.metric-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:1.25rem;}
 .met{background:#fff;border:1px solid #eee;border-radius:8px;padding:.75rem 1rem;}
 .met-val{font-size:20px;font-weight:600;}
 .met-lbl{font-size:11px;color:#888;}
@@ -225,6 +235,7 @@ const QUALITY=['Excellent','Good','Fair','Poor'];
 
 let state={areas:[]};
 let editingAreaIdx=null;
+let editingVineyardCtx=null;
 let editingBlockCtx=null;
 let editingObsCtx=null;
 
@@ -261,20 +272,32 @@ async function syncToSupabase(){
         areaId=newArea.id;
         area.dbId=areaId;
       }
-      for(const block of area.blocks){
-        if(block.dbId)continue; // ήδη ανέβηκε
-        const{data:newBlock,error:bErr}=await supabaseClient.from('blocks').insert({
-          area_id:areaId,block_code:block.id,variety:block.variety||null,
-          year_planted:block.yearPlanted||null,hectares:block.ha?parseFloat(block.ha):null,
-          orientation:block.orientation||null,spacing:block.spacing||null
-        }).select('id').single();
-        if(bErr)throw bErr;
-        block.dbId=newBlock.id;
+      for(const vy of area.vineyards){
+        let vineyardId=vy.dbId;
+        if(!vineyardId){
+          const{data:newVy,error:vErr}=await supabaseClient.from('vineyards').insert({
+            area_id:areaId,vineyard_code:vy.code,grower:vy.grower||null,gps:vy.gps||null
+          }).select('id').single();
+          if(vErr)throw vErr;
+          vineyardId=newVy.id;
+          vy.dbId=vineyardId;
+        }
+        for(const block of vy.blocks){
+          if(block.dbId)continue; // ήδη ανέβηκε
+          const{data:newBlock,error:bErr}=await supabaseClient.from('blocks').insert({
+            area_id:areaId,vineyard_id:vineyardId,block_code:block.id,variety:block.variety||null,
+            year_planted:block.yearPlanted||null,hectares:block.ha?parseFloat(block.ha):null,
+            orientation:block.orientation||null,spacing:block.spacing||null
+          }).select('id').single();
+          if(bErr)throw bErr;
+          block.dbId=newBlock.id;
+        }
       }
     }
     saveState();
     btn.textContent='☁ Synced ✓';
-    alert('Επιτυχής μεταφορά! '+state.areas.length+' περιοχές και '+state.areas.reduce((s,a)=>s+a.blocks.length,0)+' τεμάχια στο Supabase.');
+    const totalBlocks=state.areas.reduce((s,a)=>s+a.vineyards.reduce((ss,v)=>ss+v.blocks.length,0),0);
+    alert('Επιτυχής μεταφορά! '+state.areas.length+' περιοχές, '+state.areas.reduce((s,a)=>s+a.vineyards.length,0)+' αμπελώνες και '+totalBlocks+' blocks στο Supabase.');
   }catch(e){
     console.error(e);
     alert('Σφάλμα κατά τη μεταφορά: '+(e.message||e));
@@ -317,11 +340,12 @@ async function ensureVisitId(){
   return currentVisitId;
 }
 
-// Αν το area/block δεν έχει ανέβει ακόμα στο Supabase, το ανεβάζει τώρα (on-demand)
-async function ensureBlockSynced(ai,bi){
+// Αν το area/vineyard/block δεν έχει ανέβει ακόμα στο Supabase, το ανεβάζει τώρα (on-demand)
+async function ensureBlockSynced(ai,vi,bi){
   const wineryId=await getWineryId();
   const area=state.areas[ai];
-  const block=area.blocks[bi];
+  const vy=area.vineyards[vi];
+  const block=vy.blocks[bi];
   if(!area.dbId){
     const{data:newArea,error:aErr}=await supabaseClient.from('areas').insert({
       winery_id:wineryId,name:area.name,gps:area.gps||null,
@@ -333,9 +357,16 @@ async function ensureBlockSynced(ai,bi){
     if(aErr)throw aErr;
     area.dbId=newArea.id;
   }
+  if(!vy.dbId){
+    const{data:newVy,error:vErr}=await supabaseClient.from('vineyards').insert({
+      area_id:area.dbId,vineyard_code:vy.code,grower:vy.grower||null,gps:vy.gps||null
+    }).select('id').single();
+    if(vErr)throw vErr;
+    vy.dbId=newVy.id;
+  }
   if(!block.dbId){
     const{data:newBlock,error:bErr}=await supabaseClient.from('blocks').insert({
-      area_id:area.dbId,block_code:block.id,variety:block.variety||null,
+      area_id:area.dbId,vineyard_id:vy.dbId,block_code:block.id,variety:block.variety||null,
       year_planted:block.yearPlanted||null,hectares:block.ha?parseFloat(block.ha):null,
       orientation:block.orientation||null,spacing:block.spacing||null
     }).select('id').single();
@@ -346,10 +377,10 @@ async function ensureBlockSynced(ai,bi){
 }
 
 // Στέλνει μία παρατήρηση στον σωστό πίνακα, ανάλογα με τον τύπο της
-async function pushObservationToSupabase(type,obs,ai,bi){
+async function pushObservationToSupabase(type,obs,ai,vi,bi){
   if(!supabaseClient)return;
   try{
-    const blockId=await ensureBlockSynced(ai,bi);
+    const blockId=await ensureBlockSynced(ai,vi,bi);
     const visitId=await ensureVisitId();
     let table,row;
     if(type==='bbch'){
@@ -429,7 +460,12 @@ function makeDefaultAreas(){
     name,gps:'',altMin:'',altMax:'',rainfall:'',avgTemp:'',
     clay:'',sand:'',silt:'',soil:'',soilPh:'',soilNote:'',
     open:false,
-    blocks:blocks.map(b=>({...b,orientation:'',spacing:'',observations:[]}))
+    // Κάθε παλιό block γίνεται ένας vineyard με 1 block (ίδια ποικιλία) μέσα του·
+    // μπορεί κανείς αργότερα να προσθέσει κι άλλα blocks/ποικιλίες στον ίδιο vineyard.
+    vineyards:blocks.map(b=>({
+      code:b.id,grower:'',gps:'',open:false,
+      blocks:[{...b,orientation:'',spacing:'',observations:[]}]
+    }))
   }));
 }
 
@@ -442,15 +478,20 @@ async function loadFromSupabase(){
 
     const areas=[];
     for(const a of areasRows){
+      const{data:vyRows,error:vErr}=await supabaseClient.from('vineyards').select('*').eq('area_id',a.id);
+      if(vErr)throw vErr;
       const{data:blockRows,error:bErr}=await supabaseClient.from('blocks').select('*').eq('area_id',a.id);
       if(bErr)throw bErr;
       areas.push({
         name:a.name,gps:a.gps||'',altMin:a.alt_min||'',altMax:a.alt_max||'',
         rainfall:a.rainfall||'',avgTemp:a.avg_temp||'',clay:a.clay||'',sand:a.sand||'',silt:a.silt||'',
         soil:a.soil||'',soilPh:a.soil_ph||'',soilNote:a.soil_note||'',open:false,dbId:a.id,
-        blocks:(blockRows||[]).map(b=>({
-          id:b.block_code,variety:b.variety||'',yearPlanted:b.year_planted||'',ha:b.hectares||'',
-          orientation:b.orientation||'',spacing:b.spacing||'',observations:[],dbId:b.id
+        vineyards:(vyRows||[]).map(v=>({
+          code:v.vineyard_code,grower:v.grower||'',gps:v.gps||'',open:false,dbId:v.id,
+          blocks:(blockRows||[]).filter(b=>b.vineyard_id===v.id).map(b=>({
+            id:b.block_code,variety:b.variety||'',yearPlanted:b.year_planted||'',ha:b.hectares||'',
+            orientation:b.orientation||'',spacing:b.spacing||'',observations:[],dbId:b.id
+          }))
         }))
       });
     }
@@ -527,11 +568,13 @@ function generateReport(){saveState();window.open('reports.html?winery_id='+WINE
 
 function updateMetrics(){
   const ta=state.areas.length;
-  const tb=state.areas.reduce((s,a)=>s+a.blocks.length,0);
-  const to=state.areas.reduce((s,a)=>s+a.blocks.reduce((ss,b)=>ss+b.observations.length,0),0);
-  const ha=state.areas.reduce((s,a)=>s+a.blocks.reduce((ss,b)=>ss+(parseFloat(b.ha)||0),0),0);
+  const tv=state.areas.reduce((s,a)=>s+a.vineyards.length,0);
+  const tb=state.areas.reduce((s,a)=>s+a.vineyards.reduce((ss,v)=>ss+v.blocks.length,0),0);
+  const to=state.areas.reduce((s,a)=>s+a.vineyards.reduce((ss,v)=>ss+v.blocks.reduce((sss,b)=>sss+b.observations.length,0),0),0);
+  const ha=state.areas.reduce((s,a)=>s+a.vineyards.reduce((ss,v)=>ss+v.blocks.reduce((sss,b)=>sss+(parseFloat(b.ha)||0),0),0),0);
   document.getElementById('metricRow').innerHTML=`
     <div class="met"><div class="met-val">${ta}</div><div class="met-lbl">Areas</div></div>
+    <div class="met"><div class="met-val">${tv}</div><div class="met-lbl">Vineyards</div></div>
     <div class="met"><div class="met-val">${tb}</div><div class="met-lbl">Blocks</div></div>
     <div class="met"><div class="met-val">${to}</div><div class="met-lbl">Observations</div></div>
     <div class="met"><div class="met-val">${ha.toFixed(1)} ha</div><div class="met-lbl">Total area</div></div>`;
@@ -543,9 +586,10 @@ function renderAreas(){
   if(!state.areas.length){c.innerHTML='<div style="font-size:13px;color:#aaa;padding:.5rem 0 1rem;">No areas yet.</div>';return;}
   c.innerHTML=state.areas.map((a,ai)=>{
     const col=colorFor(ai);
-    const bc=a.blocks.length;
-    const oc=a.blocks.reduce((s,b)=>s+b.observations.length,0);
-    const ha=a.blocks.reduce((s,b)=>s+(parseFloat(b.ha)||0),0);
+    const vc=a.vineyards.length;
+    const bc=a.vineyards.reduce((s,v)=>s+v.blocks.length,0);
+    const oc=a.vineyards.reduce((s,v)=>s+v.blocks.reduce((ss,b)=>ss+b.observations.length,0),0);
+    const ha=a.vineyards.reduce((s,v)=>s+v.blocks.reduce((ss,b)=>ss+(parseFloat(b.ha)||0),0),0);
     const body=a.open?`
       <div class="area-body">
         <div class="static-grid">
@@ -560,32 +604,52 @@ function renderAreas(){
           <button class="btn btn-sm btn-danger" onclick="deleteArea(${ai})">Delete</button>
           <button class="btn btn-sm" onclick="openEditArea(${ai})">Edit area</button>
         </div>
-        <div class="blocks-lbl">${bc} blocks · ${ha.toFixed(1)} ha</div>
-        ${a.blocks.map((b,bi)=>{
-          const oc2=b.observations.length;
-          const hasBbchScan=b.observations.some(o=>o.type==='bbch'&&o.scanPhotos);
-          return`<div class="block-row">
-            <span class="blk-id" style="cursor:pointer" onclick="openBlockDetail(${ai},${bi})">${b.id}</span>
-            <span class="blk-variety" style="cursor:pointer" onclick="openBlockDetail(${ai},${bi})">${b.variety||'—'}</span>
-            <span class="blk-year">${b.yearPlanted||''}</span>
-            <span class="blk-ha">${b.ha?b.ha+' ha':''}</span>
-            ${oc2?`<span class="blk-obs">${oc2} obs${hasBbchScan?' 📷':''}</span>`:''}
-            <div class="blk-actions">
-              <button class="btn-scan" onclick="openScanner(${ai},${bi})" title="Scan BBCH with camera">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                Scan
-              </button>
-              <button class="btn btn-sm" onclick="openBlockDetail(${ai},${bi})">›</button>
+        <div class="vineyards-lbl">${vc} vineyards · ${bc} blocks · ${ha.toFixed(1)} ha</div>
+        ${a.vineyards.map((v,vi)=>{
+          const vbc=v.blocks.length;
+          const voc=v.blocks.reduce((s,b)=>s+b.observations.length,0);
+          const vha=v.blocks.reduce((s,b)=>s+(parseFloat(b.ha)||0),0);
+          return`<div class="vineyard-card">
+            <div class="vineyard-header" onclick="toggleVineyard(${ai},${vi})">
+              <span class="vy-code">${v.code}</span>
+              <span class="vy-grower">${v.grower||''}</span>
+              <span class="vy-meta">${vbc} block${vbc!==1?'s':''} · ${vha.toFixed(1)} ha · ${voc} obs</span>
+              <span class="chev ${v.open?'open':''}">▾</span>
             </div>
+            ${v.open?`<div class="vineyard-body">
+              <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:.5rem;">
+                <button class="btn btn-sm btn-danger" onclick="deleteVineyard(${ai},${vi})">Delete vineyard</button>
+                <button class="btn btn-sm" onclick="openEditVineyard(${ai},${vi})">Edit vineyard</button>
+              </div>
+              ${v.blocks.map((b,bi)=>{
+                const oc2=b.observations.length;
+                const hasBbchScan=b.observations.some(o=>o.type==='bbch'&&o.scanPhotos);
+                return`<div class="block-row">
+                  <span class="blk-id" style="cursor:pointer" onclick="openBlockDetail(${ai},${vi},${bi})">${b.id}</span>
+                  <span class="blk-variety" style="cursor:pointer" onclick="openBlockDetail(${ai},${vi},${bi})">${b.variety||'—'}</span>
+                  <span class="blk-year">${b.yearPlanted||''}</span>
+                  <span class="blk-ha">${b.ha?b.ha+' ha':''}</span>
+                  ${oc2?`<span class="blk-obs">${oc2} obs${hasBbchScan?' 📷':''}</span>`:''}
+                  <div class="blk-actions">
+                    <button class="btn-scan" onclick="openScanner(${ai},${vi},${bi})" title="Scan BBCH with camera">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                      Scan
+                    </button>
+                    <button class="btn btn-sm" onclick="openBlockDetail(${ai},${vi},${bi})">›</button>
+                  </div>
+                </div>`;
+              }).join('')}
+              <button class="btn btn-dashed" style="margin-top:6px;" onclick="openAddBlock(${ai},${vi})">+ Add block (variety)</button>
+            </div>`:''}
           </div>`;
         }).join('')}
-        <button class="btn btn-dashed" style="margin-top:6px;" onclick="openAddBlock(${ai})">+ Add block</button>
+        <button class="btn btn-dashed" style="margin-top:6px;" onclick="openAddVineyard(${ai})">+ Add vineyard</button>
       </div>`:'' ;
     return`<div class="area-card">
       <div class="area-header" onclick="toggleArea(${ai})">
         <div class="area-dot" style="background:${col};"></div>
         <span class="area-title">${a.name}</span>
-        <span class="area-meta">${bc} blocks · ${ha.toFixed(1)} ha · ${oc} obs</span>
+        <span class="area-meta">${vc} vineyards · ${bc} blocks · ${ha.toFixed(1)} ha · ${oc} obs</span>
         <span class="chev ${a.open?'open':''}">▾</span>
       </div>${body}</div>`;
   }).join('');
@@ -593,7 +657,8 @@ function renderAreas(){
 }
 
 function toggleArea(ai){state.areas[ai].open=!state.areas[ai].open;renderAreas();}
-function deleteArea(ai){if(confirm('Delete area and all blocks?')){state.areas.splice(ai,1);renderAreas();}}
+function deleteArea(ai){if(confirm('Delete area and all vineyards/blocks?')){state.areas.splice(ai,1);renderAreas();}}
+function toggleVineyard(ai,vi){state.areas[ai].vineyards[vi].open=!state.areas[ai].vineyards[vi].open;renderAreas();}
 function showModal(id,html){document.getElementById(id).innerHTML=html;}
 function closeModal(id){document.getElementById(id).innerHTML='';}
 function openAddArea(){editingAreaIdx=null;showModal('modalContainer',areaModalHTML({}));}
@@ -632,15 +697,45 @@ function saveArea(){
   const clay=parseInt(document.getElementById('ma_clay').value)||0;
   const sand=parseInt(document.getElementById('ma_sand').value)||0;
   const silt=parseInt(document.getElementById('ma_silt').value)||0;
-  const d={name:document.getElementById('ma_name').value,gps:document.getElementById('ma_gps').value,altMin:document.getElementById('ma_altMin').value,altMax:document.getElementById('ma_altMax').value,rainfall:document.getElementById('ma_rain').value,avgTemp:document.getElementById('ma_temp').value,clay,sand,silt,soil:(clay||sand||silt)?`${clay}% clay · ${sand}% sand · ${silt}% silt`:'',soilPh:document.getElementById('ma_ph').value,soilNote:document.getElementById('ma_soilnote').value,open:true,blocks:editingAreaIdx!==null?state.areas[editingAreaIdx].blocks:[]};
+  const d={name:document.getElementById('ma_name').value,gps:document.getElementById('ma_gps').value,altMin:document.getElementById('ma_altMin').value,altMax:document.getElementById('ma_altMax').value,rainfall:document.getElementById('ma_rain').value,avgTemp:document.getElementById('ma_temp').value,clay,sand,silt,soil:(clay||sand||silt)?`${clay}% clay · ${sand}% sand · ${silt}% silt`:'',soilPh:document.getElementById('ma_ph').value,soilNote:document.getElementById('ma_soilnote').value,open:true,vineyards:editingAreaIdx!==null?state.areas[editingAreaIdx].vineyards:[]};
   if(editingAreaIdx!==null)state.areas[editingAreaIdx]=d;else state.areas.push(d);
   closeModal('modalContainer');renderAreas();
 }
 
-function openAddBlock(ai){editingBlockCtx={ai,bi:null};showModal('blockModalContainer',blockModalHTML({},ai));}
-function openEditBlock(ai,bi){editingBlockCtx={ai,bi};closeModal('obsModalContainer');showModal('blockModalContainer',blockModalHTML(state.areas[ai].blocks[bi],ai));}
+// ─── VINEYARD CRUD (γονικό επίπεδο, πάνω από τα blocks/ποικιλίες) ───
+function openAddVineyard(ai){editingVineyardCtx={ai,vi:null};showModal('modalContainer',vineyardModalHTML({}));}
+function openEditVineyard(ai,vi){editingVineyardCtx={ai,vi};showModal('modalContainer',vineyardModalHTML(state.areas[ai].vineyards[vi]));}
 
-function blockModalHTML(d,ai){
+function vineyardModalHTML(d){
+  return`<div class="modal-bg" onclick="if(event.target===this)closeModal('modalContainer')"><div class="modal">
+    <div class="modal-title">${editingVineyardCtx.vi===null?'Add vineyard':'Edit vineyard'}</div>
+    <div class="field" style="margin-bottom:10px;"><span class="flbl">Vineyard code / name</span><input class="finp" id="mv_code" value="${d.code||''}" placeholder="π.χ. PRGI ή όνομα παραγωγού"></div>
+    <div class="g2">
+      <div class="field"><span class="flbl">Grower / owner (προαιρετικό)</span><input class="finp" id="mv_grower" value="${d.grower||''}"></div>
+      <div class="field"><span class="flbl">GPS (προαιρετικό)</span><input class="finp" id="mv_gps" value="${d.gps||''}"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('modalContainer')">Cancel</button>
+      <button class="btn btn-green" onclick="saveVineyard()">Save</button>
+    </div>
+  </div></div>`;
+}
+
+function saveVineyard(){
+  const{ai,vi}=editingVineyardCtx;
+  const d={code:document.getElementById('mv_code').value,grower:document.getElementById('mv_grower').value,gps:document.getElementById('mv_gps').value,open:true,blocks:vi!==null?state.areas[ai].vineyards[vi].blocks:[]};
+  if(vi!==null){d.dbId=state.areas[ai].vineyards[vi].dbId;state.areas[ai].vineyards[vi]=d;}
+  else state.areas[ai].vineyards.push(d);
+  closeModal('modalContainer');renderAreas();
+}
+
+function deleteVineyard(ai,vi){if(confirm('Delete vineyard and all its blocks?')){state.areas[ai].vineyards.splice(vi,1);renderAreas();}}
+
+// ─── BLOCK CRUD (child του vineyard, ένα ανά ποικιλία) ───
+function openAddBlock(ai,vi){editingBlockCtx={ai,vi,bi:null};showModal('blockModalContainer',blockModalHTML({}));}
+function openEditBlock(ai,vi,bi){editingBlockCtx={ai,vi,bi};closeModal('obsModalContainer');showModal('blockModalContainer',blockModalHTML(state.areas[ai].vineyards[vi].blocks[bi]));}
+
+function blockModalHTML(d){
   return`<div class="modal-bg" onclick="if(event.target===this)closeModal('blockModalContainer')"><div class="modal">
     <div class="modal-title">${editingBlockCtx.bi===null?'Add block':'Edit block'}</div>
     <div class="g2" style="margin-bottom:10px;">
@@ -667,17 +762,18 @@ function blockModalHTML(d,ai){
 }
 
 function saveBlock(){
-  const{ai,bi}=editingBlockCtx;
-  const d={id:document.getElementById('mb_id').value,variety:document.getElementById('mb_variety').value,yearPlanted:document.getElementById('mb_year').value,orientation:document.getElementById('mb_orient').value,ha:document.getElementById('mb_ha').value,spacing:document.getElementById('mb_spacing').value,observations:bi!==null?state.areas[ai].blocks[bi].observations:[]};
-  if(bi!==null)state.areas[ai].blocks[bi]=d;else state.areas[ai].blocks.push(d);
+  const{ai,vi,bi}=editingBlockCtx;
+  const d={id:document.getElementById('mb_id').value,variety:document.getElementById('mb_variety').value,yearPlanted:document.getElementById('mb_year').value,orientation:document.getElementById('mb_orient').value,ha:document.getElementById('mb_ha').value,spacing:document.getElementById('mb_spacing').value,observations:bi!==null?state.areas[ai].vineyards[vi].blocks[bi].observations:[]};
+  if(bi!==null){d.dbId=state.areas[ai].vineyards[vi].blocks[bi].dbId;state.areas[ai].vineyards[vi].blocks[bi]=d;}
+  else state.areas[ai].vineyards[vi].blocks.push(d);
   closeModal('blockModalContainer');renderAreas();
-  openBlockDetail(ai,bi!==null?bi:state.areas[ai].blocks.length-1);
+  openBlockDetail(ai,vi,bi!==null?bi:state.areas[ai].vineyards[vi].blocks.length-1);
 }
 
-function deleteBlock(ai,bi){if(confirm('Delete block?')){state.areas[ai].blocks.splice(bi,1);closeModal('obsModalContainer');renderAreas();}}
+function deleteBlock(ai,vi,bi){if(confirm('Delete block?')){state.areas[ai].vineyards[vi].blocks.splice(bi,1);closeModal('obsModalContainer');renderAreas();}}
 
-function openBlockDetail(ai,bi){
-  const a=state.areas[ai];const b=a.blocks[bi];const col=colorFor(ai);
+function openBlockDetail(ai,vi,bi){
+  const a=state.areas[ai];const vy=a.vineyards[vi];const b=vy.blocks[bi];const col=colorFor(ai);
   showModal('obsModalContainer',`
   <div class="modal-bg" onclick="if(event.target===this)closeModal('obsModalContainer')">
   <div class="modal" style="max-width:680px;">
@@ -685,18 +781,18 @@ function openBlockDetail(ai,bi){
       <div style="width:10px;height:10px;border-radius:50%;background:${col};"></div>
       <div style="flex:1;">
         <div style="font-size:16px;font-weight:600;">${b.id}</div>
-        <div style="font-size:12px;color:#888;">${a.name} · ${b.variety||'—'} · ${b.yearPlanted||'—'} · ${b.orientation||'—'}${b.ha?' · '+b.ha+' ha':''}</div>
+        <div style="font-size:12px;color:#888;">${a.name} · ${vy.code} · ${b.variety||'—'} · ${b.yearPlanted||'—'} · ${b.orientation||'—'}${b.ha?' · '+b.ha+' ha':''}</div>
       </div>
-      <button class="btn-scan" onclick="closeModal('obsModalContainer');openScanner(${ai},${bi})">
+      <button class="btn-scan" onclick="closeModal('obsModalContainer');openScanner(${ai},${vi},${bi})">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         Scan BBCH
       </button>
-      <button class="btn btn-sm" onclick="openEditBlock(${ai},${bi})">Edit</button>
-      <button class="btn btn-sm btn-danger" onclick="deleteBlock(${ai},${bi})">Del</button>
+      <button class="btn btn-sm" onclick="openEditBlock(${ai},${vi},${bi})">Edit</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteBlock(${ai},${vi},${bi})">Del</button>
     </div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.75rem;">
       <span style="font-size:12px;font-weight:600;color:#666;">${b.observations.length} observation${b.observations.length!==1?'s':''}</span>
-      <button class="btn btn-sm btn-green" onclick="openAddObs(${ai},${bi})">+ Add manually</button>
+      <button class="btn btn-sm btn-green" onclick="openAddObs(${ai},${vi},${bi})">+ Add manually</button>
     </div>
     ${b.observations.length===0?'<div style="font-size:13px;color:#aaa;padding:.5rem 0;">No observations yet. Use Scan BBCH or Add manually.</div>':''}
     ${b.observations.map((obs,oi)=>`
@@ -705,7 +801,7 @@ function openBlockDetail(ai,bi){
           <span class="pill p-${obs.type}">${obs.type.charAt(0).toUpperCase()+obs.type.slice(1)}</span>
           <span style="font-size:12px;color:#555;flex:1;">${obsOneLiner(obs)}</span>
           ${obs.date?`<span style="font-size:11px;color:#aaa;white-space:nowrap;">${obs.date}</span>`:''}
-          <button class="btn btn-sm btn-danger" onclick="deleteObs(${ai},${bi},${oi})">✕</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteObs(${ai},${vi},${bi},${oi})">✕</button>
         </div>
         ${obs.type==='bbch'&&obs.scanPhotos?`
           <div style="margin-top:8px;">
@@ -734,10 +830,10 @@ function obsOneLiner(obs){
   return'';
 }
 
-function deleteObs(ai,bi,oi){state.areas[ai].blocks[bi].observations.splice(oi,1);openBlockDetail(ai,bi);renderAreas();}
-function openAddObs(ai,bi){editingObsCtx={ai,bi};showModal('obsModalContainer',obsFormHTML(ai,bi,{type:'bbch'}));}
+function deleteObs(ai,vi,bi,oi){state.areas[ai].vineyards[vi].blocks[bi].observations.splice(oi,1);openBlockDetail(ai,vi,bi);renderAreas();}
+function openAddObs(ai,vi,bi){editingObsCtx={ai,vi,bi};showModal('obsModalContainer',obsFormHTML(ai,vi,bi,{type:'bbch'}));}
 
-function obsFormHTML(ai,bi,d){
+function obsFormHTML(ai,vi,bi,d){
   const t=d.type||'bbch';
   const fields={
     bbch:`<div class="field" style="margin-bottom:10px;"><span class="flbl">BBCH stage</span>
@@ -781,9 +877,9 @@ function obsFormHTML(ai,bi,d){
       </div>`
   };
   const defaultDate=d.date||document.getElementById('hDate')?.value||new Date().toISOString().slice(0,10);
-  return`<div class="modal-bg" onclick="if(event.target===this)openBlockDetail(${ai},${bi})">
+  return`<div class="modal-bg" onclick="if(event.target===this)openBlockDetail(${ai},${vi},${bi})">
   <div class="modal" style="max-width:600px;">
-    <div class="modal-title">Add observation — ${state.areas[ai].blocks[bi].id}</div>
+    <div class="modal-title">Add observation — ${state.areas[ai].vineyards[vi].blocks[bi].id}</div>
     <div class="obs-tabs">${['bbch','insects','diseases','management','estimations'].map(tp=>`<button class="otab${tp===t?' on':''}" onclick="switchObsType('${tp}')">${tp.charAt(0).toUpperCase()+tp.slice(1)}</button>`).join('')}</div>
     <div class="field" style="margin-bottom:12px;max-width:180px;">
       <span class="flbl">Ημερομηνία καταχώρησης</span>
@@ -792,8 +888,8 @@ function obsFormHTML(ai,bi,d){
     <div id="obsTypeFields">${fields[t]}</div>
     <div class="field" style="margin-top:12px;"><span class="flbl">Notes</span><textarea class="fta" id="of_note" rows="2">${d.note||''}</textarea></div>
     <div class="modal-footer">
-      <button class="btn" onclick="openBlockDetail(${ai},${bi})">Back</button>
-      <button class="btn btn-green" onclick="saveObs('${t}',${ai},${bi})">Save</button>
+      <button class="btn" onclick="openBlockDetail(${ai},${vi},${bi})">Back</button>
+      <button class="btn btn-green" onclick="saveObs('${t}',${ai},${vi},${bi})">Save</button>
     </div>
   </div></div>`;
 }
@@ -803,33 +899,33 @@ function updateWorkOrder(){
   const wo=document.getElementById('of_workorder');
   if(sel&&wo&&sel.value)wo.value=BBCH_WORK[parseInt(sel.value)]||'';
 }
-function switchObsType(t){const{ai,bi}=editingObsCtx;const curDate=document.getElementById('of_date')?.value;showModal('obsModalContainer',obsFormHTML(ai,bi,{type:t,date:curDate}));}
+function switchObsType(t){const{ai,vi,bi}=editingObsCtx;const curDate=document.getElementById('of_date')?.value;showModal('obsModalContainer',obsFormHTML(ai,vi,bi,{type:t,date:curDate}));}
 function toggleStg(btn){const isA=btn.textContent==='Adult';if(btn.classList.contains('on')||btn.classList.contains('on-adult')){btn.classList.remove('on','on-adult');}else{btn.classList.add(isA?'on-adult':'on');}}
 function getSelectedStgs(){return Array.from(document.querySelectorAll('.stg.on,.stg.on-adult')).map(b=>b.textContent);}
 
-async function saveObs(t,ai,bi){
+async function saveObs(t,ai,vi,bi){
   let obs={type:t,note:document.getElementById('of_note').value,date:document.getElementById('of_date').value||null};
   if(t==='bbch'){obs.bbch=parseInt(document.getElementById('of_bbch').value)||null;obs.workOrder=document.getElementById('of_workorder').value;}
   if(t==='insects'){obs.presence=document.getElementById('of_presence').value;obs.species=document.getElementById('of_species').value;obs.population=document.getElementById('of_pop').value;obs.stages=getSelectedStgs();}
   if(t==='diseases'){obs.disease=document.getElementById('of_disease').value;obs.severity=document.getElementById('of_severity').value;obs.affectedPct=document.getElementById('of_pct').value;}
   if(t==='management')obs.practices=getSelectedStgs();
   if(t==='estimations'){obs.baume=document.getElementById('of_baume').value;obs.tartaricAcid=document.getElementById('of_tartaric').value;obs.ph=document.getElementById('of_ph').value;obs.berryWeight=document.getElementById('of_berry').value;obs.juiceYield=document.getElementById('of_juiceyield').value;obs.yieldEst=document.getElementById('of_yield').value;obs.harvestWindow=document.getElementById('of_harvest').value;obs.quality=document.getElementById('of_quality').value;}
-  state.areas[ai].blocks[bi].observations.push(obs);
-  openBlockDetail(ai,bi);renderAreas();
-  await pushObservationToSupabase(t,obs,ai,bi);
+  state.areas[ai].vineyards[vi].blocks[bi].observations.push(obs);
+  openBlockDetail(ai,vi,bi);renderAreas();
+  await pushObservationToSupabase(t,obs,ai,vi,bi);
   renderAreas(); // ξαναζωγράφισε ώστε να φανεί τυχόν ένδειξη συγχρονισμού
 }
 
 // ─── SCANNER ───────────────────────────────────────────────
-function openScanner(ai,bi){
+function openScanner(ai,vi,bi){
   scanPhotos=[];scanResults=[];
-  scanCtx={ai,bi};
+  scanCtx={ai,vi,bi};
   renderScanner();
 }
 
 function renderScanner(){
-  const{ai,bi}=scanCtx;
-  const b=state.areas[ai].blocks[bi];
+  const{ai,vi,bi}=scanCtx;
+  const b=state.areas[ai].vineyards[vi].blocks[bi];
   const done=scanResults.filter(r=>r&&r.bbch).length;
   const total=scanPhotos.length;
   const avgBbch=calcAvgBbch();
@@ -965,7 +1061,7 @@ function clearScan(){scanPhotos=[];scanResults=[];renderScanner();}
 function closeScanner(){document.getElementById('scannerContainer').innerHTML='';}
 
 async function confirmScan(){
-  const{ai,bi}=scanCtx;
+  const{ai,vi,bi}=scanCtx;
   const avgBbch=calcAvgBbch();
   const repIdx=findRepresentativeIdx();
   if(!avgBbch)return;
@@ -983,13 +1079,13 @@ async function confirmScan(){
     scanCount:scanPhotos.length,
     note:`AI scan: ${scanPhotos.length} photos · avg BBCH ${avgBbch} · ${BBCH_DESC[avgBbch]}`
   };
-  state.areas[ai].blocks[bi].observations.push(obs);
+  state.areas[ai].vineyards[vi].blocks[bi].observations.push(obs);
   closeScanner();
   renderAreas();
-  openBlockDetail(ai,bi);
+  openBlockDetail(ai,vi,bi);
   // Σημείωση: οι ίδιες οι φωτογραφίες (scanPhotos) ΔΕΝ ανεβαίνουν ακόμα στο Supabase Storage —
   // μόνο η μέτρηση BBCH. Το ανέβασμα φωτογραφιών είναι ξεχωριστό επόμενο βήμα.
-  await pushObservationToSupabase('bbch',obs,ai,bi);
+  await pushObservationToSupabase('bbch',obs,ai,vi,bi);
   renderAreas();
 }
 

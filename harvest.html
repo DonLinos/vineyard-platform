@@ -91,13 +91,20 @@ async function loadData(){
 
   const{data:areasRows}=await supa.from('areas').select('id').eq('winery_id',WINERY_ID);
   const areaIds=(areasRows||[]).map(a=>a.id);
+  let vineyardsRows=[];
   let blocksRows=[];
   if(areaIds.length){
-    const{data}=await supa.from('blocks').select('id,block_code,variety').in('area_id',areaIds);
+    const{data:vd}=await supa.from('vineyards').select('id,vineyard_code').in('area_id',areaIds);
+    vineyardsRows=vd||[];
+    const{data}=await supa.from('blocks').select('id,block_code,variety,vineyard_id').in('area_id',areaIds);
     blocksRows=data||[];
   }
+  const vineyardCodeById={};
+  vineyardsRows.forEach(v=>{vineyardCodeById[v.id]=v.vineyard_code;});
   const blockById={};
-  blocksRows.forEach(b=>{blockById[b.id]=b;});
+  // Ετικέτα γραμμής στον πίνακα = ο αμπελώνας-γονέας (πρώην block_code, π.χ. όνομα παραγωγού στο Βασιλικόν),
+  // ώστε πολλαπλά blocks/ποικιλίες κάτω από τον ίδιο αμπελώνα να εμφανίζονται στην ίδια γραμμή.
+  blocksRows.forEach(b=>{blockById[b.id]={...b,rowLabel:vineyardCodeById[b.vineyard_id]||b.block_code};});
   const blockIds=blocksRows.map(b=>b.id);
 
   let estRows=[];
@@ -116,8 +123,8 @@ async function loadData(){
     const names=parseVarietyNames(block.variety);
     names.forEach(variety=>{
       if(!varietyData[variety])varietyData[variety]={};
-      if(!varietyData[variety][block.block_code])varietyData[variety][block.block_code]={};
-      varietyData[variety][block.block_code][date]={
+      if(!varietyData[variety][block.rowLabel])varietyData[variety][block.rowLabel]={};
+      varietyData[variety][block.rowLabel][date]={
         baume:r.baume, tartaricAcid:r.tartaric_acid, ph:r.ph,
         berryWeight:r.berry_weight_g, juiceYield:r.juice_yield
       };
