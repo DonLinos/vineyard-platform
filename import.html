@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<title>Εισαγωγή ιστορικών αναφορών — Marathasa</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body{font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:960px;margin:2rem auto;padding:0 1rem;color:#222;}
+  h1{font-size:1.3rem}
+  h2{font-size:1.05rem;margin-top:2rem;border-bottom:1px solid #ddd;padding-bottom:.3rem}
+  .card{background:#f7f7f8;border:1px solid #e2e2e2;border-radius:10px;padding:1rem;margin:.6rem 0}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  td,th{border-bottom:1px solid #eee;padding:.35rem .5rem;text-align:left}
+  select,button,input{font-size:14px;padding:.35rem .5rem;border-radius:6px;border:1px solid #ccc}
+  button.primary{background:#1D9E75;color:#fff;border:none;cursor:pointer;padding:.6rem 1.2rem;font-weight:600}
+  button.primary:disabled{background:#aaa;cursor:not-allowed}
+  .log{font-family:monospace;font-size:12px;white-space:pre-wrap;background:#111;color:#9fe;padding:1rem;border-radius:8px;max-height:400px;overflow:auto}
+  .warn{color:#b5480a;font-weight:600}
+  .ok{color:#1D9E75}
+  .pill{display:inline-block;background:#eee;border-radius:20px;padding:.1rem .6rem;font-size:12px;margin-left:.4rem}
+</style>
+</head>
+<body>
+<h1>📥 Εισαγωγή ιστορικών field visit reports (Φεβ–Ιούν 2026)</h1>
+<p>Αυτό το εργαλείο διαβάζει τα 17 TFV reports (ήδη εξαγμένα σε δομημένη μορφή, με τα E-L στάδια μετατρεμμένα σε BBCH) και τα γράφει στο Supabase σου, στους ίδιους πίνακες που χρησιμοποιεί το admin.html (<code>visits</code>, <code>bbch_observations</code>, <code>disease_observations</code>, <code>insect_observations</code>, <code>management_observations</code>).</p>
+<p class="warn" id="authWarn"></p>
+
+<h2>1. Αντιστοίχιση περιοχής/ποικιλίας → block</h2>
+<p>Τα reports ομαδοποιούν μερικές φορές δύο πραγματικά blocks κάτω από τον ίδιο τίτλο (π.χ. "Pyrgos Area – Marios Vasileiou" καλύπτει και τα PRG* και τα MVS* blocks). Διάλεξε ποιο πραγματικό block αντιστοιχεί σε κάθε συνδυασμό πριν τρέξεις την εισαγωγή.</p>
+<div id="mappingTable" class="card">Φόρτωση blocks από Supabase...</div>
+
+<h2>2. Προεπισκόπηση</h2>
+<div class="card">
+  <span id="phenCount">174</span> μετρήσεις φαινολογικού σταδίου (BBCH) <span class="pill">bbch_observations</span><br>
+  <span id="obsCount">95</span> λοιπές παρατηρήσεις (θρέψη/άρδευση/φυτοπροστασία/εργασίες) <span class="pill">disease / insect / management_observations</span><br>
+  Θα δημιουργηθεί ένα <code>visits</code> row για κάθε μοναδική ημερομηνία (<span id="visitCount">-</span> επισκέψεις συνολικά).
+</div>
+
+<h2>3. Εκτέλεση</h2>
+<button class="primary" id="runBtn" disabled onclick="runImport()">Εισαγωγή στο Supabase</button>
+<p style="font-size:13px;color:#777">Ασφαλές να ξανατρέξει: αν ξανατρέξεις, θα δημιουργηθούν ΝΕΑ visits/observations (δεν κάνει έλεγχο διπλοεγγραφών) — τρέξε το μία φορά.</p>
+<div class="log" id="log" style="display:none"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="import_data.js"></script>
+<script>
+const SUPABASE_URL = 'https://xxyrareqzgvsaolhftbh.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const urlParams = new URLSearchParams(window.location.search);
+const WINERY_ID = urlParams.get('winery_id');
+
+const DISEASE_KEYWORDS = {'powdery mildew':'Powdery mildew','downy mildew':'Downy mildew','botrytis':'Botrytis'};
+const SEVERITY_ORDER = ['Trace','Low','Moderate','High','Severe'];
+function guessSeverity(text){
+  const t=text.toLowerCase();
+  if(/very limited|trace/.test(t))return 'Trace';
+  if(/small|minor|limited|localized|low/.test(t))return 'Low';
+  if(/moderate/.test(t))return 'Moderate';
+  if(/severe|high/.test(t))return 'High';
+  return 'Low';
+}
+function guessDisease(text){
+  const t=text.toLowerCase();
+  for(const k in DISEASE_KEYWORDS) if(t.includes(k)) return DISEASE_KEYWORDS[k];
+  return null;
+}
+function guessPractices(text){
+  const t=text.toLowerCase();
+  const out=[];
+  if(/irrigation|water volume|l\/hour/.test(t))out.push('Irrigation');
+  if(/fertil|nitrogen|potassium|organic fertil|nutriti/.test(t))out.push('Fertilisation');
+  if(/prun|shoot thinning|cane/.test(t))out.push('Pruning');
+  if(/spray/.test(t))out.push('Spraying');
+  if(/leaf removal/.test(t))out.push('Leaf removal');
+  if(/tie-down|tie down/.test(t))out.push('Tie-down');
+  if(/suckering/.test(t))out.push('Suckering');
+  if(out.length===0)out.push('Other');
+  return out;
+}
+
+let realBlocks = []; // {id, block_code, variety, area_name}
+let mapping = {}; // key `${area}||${variety}` -> block_id (or 'SKIP')
+
+async function requireAuth(){
+  const {data:{session}} = await supabaseClient.auth.getSession();
+  if(!session){
+    document.getElementById('authWarn').textContent = 'Δεν είσαι συνδεδεμένος. Άνοιξε πρώτα το login.html (ίδιο tab/browser) και μετά ξαναφόρτωσε αυτή τη σελίδα με το ?winery_id=... στο URL.';
+    return false;
+  }
+  if(!WINERY_ID){
+    document.getElementById('authWarn').textContent = 'Λείπει το ?winery_id=... από το URL.';
+    return false;
+  }
+  return true;
+}
+
+async function loadBlocks(){
+  const {data:areas,error:aErr} = await supabaseClient.from('areas').select('id,name').eq('winery_id',WINERY_ID);
+  if(aErr){document.getElementById('mappingTable').textContent='Σφάλμα φόρτωσης areas: '+aErr.message;return;}
+  const areaNameById={}; areas.forEach(a=>areaNameById[a.id]=a.name);
+  const {data:blocks,error:bErr} = await supabaseClient.from('blocks').select('id,block_code,variety,area_id').in('area_id',areas.map(a=>a.id));
+  if(bErr){document.getElementById('mappingTable').textContent='Σφάλμα φόρτωσης blocks: '+bErr.message;return;}
+  realBlocks = blocks.map(b=>({id:b.id,block_code:b.block_code,variety:b.variety||'',area_name:areaNameById[b.area_id]||''}));
+  renderMappingTable();
+}
+
+function uniqueAreaVarietyPairs(){
+  const seen = new Map();
+  IMPORT_PHENOLOGY.forEach(r=>{
+    const key = r.area+'||'+r.variety;
+    if(!seen.has(key)) seen.set(key, {area:r.area, variety:r.variety});
+  });
+  return Array.from(seen.values());
+}
+
+function suggestBlockFor(area, variety){
+  const v = variety.split('/')[0].trim().toUpperCase();
+  let candidates = realBlocks.filter(b=>b.variety.toUpperCase().includes(v));
+  return candidates;
+}
+
+function renderMappingTable(){
+  const pairs = uniqueAreaVarietyPairs();
+  let html = '<table><tr><th>Report label</th><th>Variety</th><th>→ Πραγματικό block</th></tr>';
+  pairs.forEach((p,i)=>{
+    const cands = suggestBlockFor(p.area, p.variety);
+    const key = p.area+'||'+p.variety;
+    html += `<tr><td>${p.area}</td><td>${p.variety}</td><td>
+      <select id="map_${i}" data-key="${key.replace(/"/g,'&quot;')}">
+        <option value="SKIP">— παράλειψη —</option>
+        ${realBlocks.map(b=>`<option value="${b.id}" ${cands.some(c=>c.id===b.id)?'selected':''}>${b.area_name} / ${b.block_code} (${b.variety})</option>`).join('')}
+      </select>
+    </td></tr>`;
+  });
+  html += '</table>';
+  document.getElementById('mappingTable').innerHTML = html;
+  document.getElementById('runBtn').disabled = false;
+  const visitDates = new Set([...IMPORT_PHENOLOGY.map(r=>r.date), ...IMPORT_OBSERVATIONS.map(r=>r.date)]);
+  document.getElementById('visitCount').textContent = visitDates.size;
+}
+
+function collectMapping(){
+  const pairs = uniqueAreaVarietyPairs();
+  pairs.forEach((p,i)=>{
+    const sel = document.getElementById('map_'+i);
+    mapping[p.area+'||'+p.variety] = sel.value;
+  });
+}
+
+function log(msg, cls){
+  const el = document.getElementById('log');
+  el.style.display='block';
+  const line = document.createElement('div');
+  if(cls) line.className=cls;
+  line.textContent = msg;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function runImport(){
+  collectMapping();
+  document.getElementById('runBtn').disabled = true;
+  log('Ξεκινάει η εισαγωγή...');
+
+  // 1) Δημιούργησε ένα visit ανά μοναδική ημερομηνία
+  const dates = Array.from(new Set([...IMPORT_PHENOLOGY.map(r=>r.date), ...IMPORT_OBSERVATIONS.map(r=>r.date)])).sort();
+  const visitIdByDate = {};
+  for(const d of dates){
+    const {data,error} = await supabaseClient.from('visits').insert({
+      winery_id: WINERY_ID, visit_date: d, inspector:'Grigoriou Apostolos',
+      purpose:'Ιστορική εισαγωγή από PDF αναφορά (E-L→BBCH μετατροπή)'
+    }).select('id').single();
+    if(error){ log('✗ visit '+d+': '+error.message,'warn'); continue; }
+    visitIdByDate[d] = data.id;
+    log('✓ visit δημιουργήθηκε: '+d);
+  }
+
+  // 2) bbch_observations
+  let okP=0, failP=0;
+  for(const r of IMPORT_PHENOLOGY){
+    const blockId = mapping[r.area+'||'+r.variety];
+    if(!blockId || blockId==='SKIP'){ failP++; continue; }
+    const visitId = visitIdByDate[r.date];
+    if(!visitId) continue;
+    const noteFull = `E-L ${r.el} → BBCH ${r.bbch}${r.pct?` (~${r.pct}% development)`:''}${r.note?' — '+r.note:''}`;
+    const {error} = await supabaseClient.from('bbch_observations').insert({
+      block_id: blockId, visit_id: visitId, bbch_stage: r.bbch_num, note: noteFull, observed_date: r.date
+    });
+    if(error){ failP++; log('✗ bbch '+r.date+' '+r.area+'/'+r.variety+': '+error.message,'warn'); }
+    else okP++;
+  }
+  log(`Φαινολογικά στάδια: ${okP} ok, ${failP} παραλείφθηκαν/απέτυχαν`, okP?'ok':'warn');
+
+  // 3) Λοιπές παρατηρήσεις -> disease / insect / management
+  let okO=0, failO=0;
+  for(const r of IMPORT_OBSERVATIONS){
+    const visitId = visitIdByDate[r.date];
+    if(!visitId) continue;
+    // Βρες ένα block-id ταίριασμα με βάση το κείμενο της περιοχής (best-effort, χαλαρό match)
+    const areaLower = r.area.toLowerCase();
+    let blockId = null;
+    for(const key in mapping){
+      const [mArea] = key.split('||');
+      if(areaLower.includes(mArea.toLowerCase()) || mArea.toLowerCase().includes(areaLower.split(' ')[0].toLowerCase())){
+        if(mapping[key] !== 'SKIP'){ blockId = mapping[key]; break; }
+      }
+    }
+    if(!blockId){ failO++; log('✗ δεν βρέθηκε block για: '+r.date+' / '+r.area,'warn'); continue; }
+
+    let table, row;
+    if(r.category==='pest_disease'){
+      const disease = guessDisease(r.note);
+      if(disease){
+        table='disease_observations';
+        row={block_id:blockId, visit_id:visitId, disease, severity:guessSeverity(r.note), note:r.note, observed_date:r.date};
+      } else {
+        table='insect_observations';
+        row={block_id:blockId, visit_id:visitId, presence:'observed', species:'Other', note:r.note, observed_date:r.date};
+      }
+    } else {
+      table='management_observations';
+      row={block_id:blockId, visit_id:visitId, practices:guessPractices(r.note), note:`[${r.category}] ${r.note}`, observed_date:r.date, status:'done'};
+    }
+    const {error} = await supabaseClient.from(table).insert(row);
+    if(error){ failO++; log('✗ '+table+' '+r.date+': '+error.message,'warn'); }
+    else okO++;
+  }
+  log(`Λοιπές παρατηρήσεις: ${okO} ok, ${failO} παραλείφθηκαν/απέτυχαν`, okO?'ok':'warn');
+  log('Ολοκληρώθηκε. Έλεγξε το admin.html / report.html για επιβεβαίωση.', 'ok');
+  document.getElementById('runBtn').disabled = false;
+}
+
+(async function init(){
+  const ok = await requireAuth();
+  if(!ok) return;
+  await loadBlocks();
+})();
+</script>
+</body>
+</html>
