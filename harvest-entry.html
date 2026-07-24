@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Καταχώρηση Τρύγου</title>
+<style>
+  :root{
+    --ink:#1a1a1a; --ink-dim:#666; --ink-faint:#999;
+    --bg:#faf9f6; --card:#fff; --line:#e8e6e0;
+    --gold:#c99a3e; --green:#2d6a4f; --green-bg:#eaf5ef;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  .topbar{background:#1a1a1a;color:#fff;padding:14px 20px;position:sticky;top:0;z-index:50;}
+  .topbar-title{font-size:15px;font-weight:600;}
+  .topbar-sub{font-size:12px;color:#bbb;margin-top:2px;}
+  .wrap{max-width:560px;margin:0 auto;padding:1rem 1.25rem 4rem;}
+  .back-link{display:inline-block;margin-bottom:1rem;font-size:13px;color:var(--ink-dim);text-decoration:none;}
+  .no-data{text-align:center;color:var(--ink-faint);padding:3rem 1rem;font-size:14px;}
+
+  /* date bar */
+  .date-row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 14px;margin-bottom:1rem;}
+  .date-row label{font-size:12px;color:var(--ink-dim);white-space:nowrap;}
+  .date-row input[type=date]{border:none;background:transparent;font-size:14px;font-weight:600;color:var(--ink);flex:1;}
+
+  /* search + list */
+  .search-input{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:15px;margin-bottom:1rem;background:var(--card);color:var(--ink);}
+  .search-input:focus{outline:none;border-color:var(--gold);}
+  .vy-group{margin-bottom:14px;}
+  .vy-hdr{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim);margin-bottom:6px;}
+  .block-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .block-btn{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:9px 13px;font-size:13px;cursor:pointer;color:var(--ink);text-align:left;}
+  .block-btn:active{border-color:var(--gold);}
+  .block-btn .variety{display:block;font-size:11px;color:var(--ink-faint);margin-top:1px;}
+  .block-btn.has-entry{border-color:#b7dcc5;background:var(--green-bg);}
+  .block-btn.has-entry .variety{color:var(--green);}
+
+  /* entry form */
+  .entry-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .entry-title{font-size:17px;font-weight:700;}
+  .entry-sub{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+  .change-block{font-size:12px;color:var(--ink-dim);background:none;border:none;text-decoration:underline;cursor:pointer;padding:0;}
+  .sec-lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim);margin:1.1rem 0 8px;}
+  .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .flbl{font-size:11px;color:var(--ink-dim);}
+  .finp,.fsel,.fta{border:1px solid var(--line);border-radius:8px;padding:10px;font-size:15px;background:var(--card);color:var(--ink);width:100%;font-family:inherit;}
+  .finp:focus,.fsel:focus,.fta:focus{outline:none;border-color:var(--gold);}
+  .more-toggle{font-size:12px;color:var(--ink-dim);background:none;border:none;text-decoration:underline;cursor:pointer;padding:0;margin-top:1rem;}
+  .more-fields{display:none;margin-top:10px;}
+  .more-fields.on{display:block;}
+  .save-bar{position:sticky;bottom:0;background:var(--bg);padding:14px 0 4px;margin-top:1.5rem;display:flex;gap:10px;}
+  .btn{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:12px 16px;font-size:14px;cursor:pointer;flex:1;}
+  .btn-green{background:var(--green);color:#fff;border-color:var(--green);font-weight:600;}
+  .btn-green:disabled{opacity:.5;}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:11px 20px;border-radius:24px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:100;}
+  .toast.show{opacity:1;}
+  .last-entry{font-size:12px;color:var(--ink-dim);margin-top:10px;background:var(--green-bg);border:1px solid #b7dcc5;border-radius:8px;padding:9px 12px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-title" id="topbarTitle">Καταχώρηση Τρύγου</div>
+  <div class="topbar-sub" id="topbarSub">Φόρτωση...</div>
+</div>
+
+<div class="wrap">
+  <a class="back-link" href="#" id="backLink">← Πίσω στα reports</a>
+
+  <div class="date-row">
+    <label for="entryDate">Ημερομηνία</label>
+    <input type="date" id="entryDate">
+  </div>
+
+  <div id="content"><div class="no-data">Φόρτωση δεδομένων...</div></div>
+</div>
+
+<div class="toast" id="toast">Αποθηκεύτηκε ✓</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
+const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
+const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const urlParams=new URLSearchParams(window.location.search);
+const WINERY_ID=urlParams.get('winery_id');
+document.getElementById('backLink').href='reports.html?winery_id='+WINERY_ID;
+
+const VARIETY_NAME_FIX={'Moschato Fileri':'Moschofilero'};
+function parseVarietyNames(varietyStr){
+  if(!varietyStr)return['Άγνωστη ποικιλία'];
+  const parts=varietyStr.split('—');
+  const namePart=(parts.length>1?parts[1]:parts[0]).trim();
+  return namePart.split('/').map(s=>s.trim()).map(s=>VARIETY_NAME_FIX[s]||s).filter(Boolean).join(' / ');
+}
+
+let blocks=[];          // flat list {id, blockCode, variety, vineyardId, vineyardCode, grower}
+let vineyardGroups=[];  // [{vineyardCode, grower, blocks:[...]}]
+let selectedBlock=null;
+let visitIdByDate={};   // cache: { '2026-08-14': visitId }
+let lastEntryByBlock={}; // block_id -> {date, summary} for the has-entry badge
+
+async function loadData(){
+  const{data:{session}}=await supa.auth.getSession();
+  if(!session){window.location.href='login.html';return;}
+  if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id.</div>';return;}
+
+  const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+  document.getElementById('topbarTitle').textContent=(winery?winery.name:'')+' — Καταχώρηση Τρύγου';
+  document.getElementById('topbarSub').textContent='Baumé, τρυγικό, pH, βάρος ράγας, απόδοση';
+
+  const{data:areasRows}=await supa.from('areas').select('id').eq('winery_id',WINERY_ID);
+  const areaIds=(areasRows||[]).map(a=>a.id);
+  let vineyardsRows=[],blocksRows=[];
+  if(areaIds.length){
+    const{data:vd}=await supa.from('vineyards').select('id,vineyard_code,grower').in('area_id',areaIds);
+    vineyardsRows=vd||[];
+    const{data:bd}=await supa.from('blocks').select('id,block_code,variety,vineyard_id').in('area_id',areaIds);
+    blocksRows=bd||[];
+  }
+  const vineyardById={};
+  vineyardsRows.forEach(v=>{vineyardById[v.id]=v;});
+
+  blocks=blocksRows.map(b=>{
+    const vy=vineyardById[b.vineyard_id]||{};
+    return{id:b.id,blockCode:b.block_code,variety:b.variety,vineyardId:b.vineyard_id,vineyardCode:vy.vineyard_code||b.block_code,grower:vy.grower||''};
+  });
+
+  // πιο πρόσφατη καταχώρηση ανά block, για το πράσινο badge
+  const blockIds=blocks.map(b=>b.id);
+  if(blockIds.length){
+    const{data:estRows}=await supa.from('estimation_observations').select('block_id,observed_date,baume,ph').in('block_id',blockIds).order('observed_date',{ascending:false});
+    (estRows||[]).forEach(r=>{if(!lastEntryByBlock[r.block_id])lastEntryByBlock[r.block_id]=r;});
+  }
+
+  regroup();
+  renderList();
+}
+
+function regroup(){
+  const byVy={};
+  blocks.forEach(b=>{
+    const key=b.vineyardCode;
+    if(!byVy[key])byVy[key]={vineyardCode:b.vineyardCode,grower:b.grower,blocks:[]};
+    byVy[key].blocks.push(b);
+  });
+  vineyardGroups=Object.values(byVy).sort((a,b)=>a.vineyardCode.localeCompare(b.vineyardCode));
+}
+
+function renderList(filter){
+  const content=document.getElementById('content');
+  const f=(filter||'').trim().toLowerCase();
+  const groups=f?vineyardGroups.map(g=>({...g,blocks:g.blocks.filter(b=>
+      g.vineyardCode.toLowerCase().includes(f)||
+      (g.grower||'').toLowerCase().includes(f)||
+      (b.variety||'').toLowerCase().includes(f)
+    )})).filter(g=>g.blocks.length):vineyardGroups;
+
+  if(!vineyardGroups.length){
+    content.innerHTML='<div class="no-data">Δεν βρέθηκαν blocks για αυτό το winery.</div>';
+    return;
+  }
+
+  content.innerHTML=`
+    <input class="search-input" id="searchInput" placeholder="Αναζήτηση παραγωγού / αμπελώνα / ποικιλίας..." value="${filter||''}">
+    ${groups.length?groups.map(g=>`
+      <div class="vy-group">
+        <div class="vy-hdr">${g.vineyardCode}${g.grower?' — '+g.grower:''}</div>
+        <div class="block-row">
+          ${g.blocks.map(b=>{
+            const last=lastEntryByBlock[b.id];
+            return`<button class="block-btn${last?' has-entry':''}" onclick="selectBlock('${b.id}')">
+              ${parseVarietyNames(b.variety)||b.blockCode}
+              <span class="variety">${last?('✓ '+fmtShortDate(last.observed_date)):(b.blockCode||'')}</span>
+            </button>`;
+          }).join('')}
+        </div>
+      </div>
+    `).join(''):'<div class="no-data">Καμία αντιστοιχία.</div>'}
+  `;
+  document.getElementById('searchInput').addEventListener('input',e=>renderList(e.target.value));
+  document.getElementById('searchInput').focus();
+  // κράτα το cursor στο τέλος όταν ξαναφτιάχνουμε το input μετά από πληκτρολόγηση
+  const si=document.getElementById('searchInput');
+  si.setSelectionRange(si.value.length,si.value.length);
+}
+
+function fmtShortDate(d){
+  if(!d)return'';
+  const dt=new Date(d+'T00:00:00');
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0');
+}
+
+function selectBlock(blockId){
+  selectedBlock=blocks.find(b=>b.id===blockId);
+  renderForm();
+}
+
+function renderForm(){
+  const b=selectedBlock;
+  const last=lastEntryByBlock[b.id];
+  document.getElementById('content').innerHTML=`
+    <div class="entry-hdr">
+      <div>
+        <div class="entry-title">${b.vineyardCode}${b.blockCode&&b.blockCode!==b.vineyardCode?' · '+b.blockCode:''}</div>
+        <div class="entry-sub">${parseVarietyNames(b.variety)}${b.grower?' · '+b.grower:''}</div>
+      </div>
+      <button class="change-block" onclick="backToList()">Αλλαγή block</button>
+    </div>
+
+    ${last?`<div class="last-entry">Τελευταία καταχώρηση: ${fmtShortDate(last.observed_date)}${last.baume?' · Baumé '+last.baume:''}${last.ph?' · pH '+last.ph:''}</div>`:''}
+
+    <div class="sec-lbl">Χημικές αναλύσεις</div>
+    <div class="g3">
+      <div class="field"><span class="flbl">Baumé (°Bé)</span><input class="finp" id="ef_baume" inputmode="decimal"></div>
+      <div class="field"><span class="flbl">Τρυγικό (g/L)</span><input class="finp" id="ef_tartaric" inputmode="decimal"></div>
+      <div class="field"><span class="flbl">pH</span><input class="finp" id="ef_ph" inputmode="decimal"></div>
+    </div>
+
+    <div class="sec-lbl">Αγρονομικές αναλύσεις</div>
+    <div class="g2">
+      <div class="field"><span class="flbl">Βάρος ράγας (g)</span><input class="finp" id="ef_berry" inputmode="decimal"></div>
+      <div class="field"><span class="flbl">Απόδοση χυμού (mg/g)</span><input class="finp" id="ef_juiceyield" inputmode="decimal"></div>
+    </div>
+
+    <button class="more-toggle" id="moreToggle" onclick="toggleMore()">+ Περισσότερα πεδία</button>
+    <div class="more-fields" id="moreFields">
+      <div class="g2" style="margin-bottom:10px;">
+        <div class="field"><span class="flbl">Yield estimate (kg/ha)</span><input class="finp" id="ef_yield" inputmode="decimal"></div>
+        <div class="field"><span class="flbl">Harvest window</span><input class="finp" id="ef_harvest"></div>
+      </div>
+      <div class="field" style="margin-bottom:10px;">
+        <span class="flbl">Quality outlook</span>
+        <select class="fsel" id="ef_quality">
+          <option value="">Select...</option>
+          <option>Excellent</option><option>Good</option><option>Average</option><option>Below average</option>
+        </select>
+      </div>
+      <div class="field">
+        <span class="flbl">Σημειώσεις</span>
+        <textarea class="fta" id="ef_note" rows="2"></textarea>
+      </div>
+    </div>
+
+    <div class="save-bar">
+      <button class="btn" onclick="backToList()">Πίσω στη λίστα</button>
+      <button class="btn btn-green" id="saveBtn" onclick="saveEntry()">Αποθήκευση</button>
+    </div>
+  `;
+  document.getElementById('ef_baume').focus();
+}
+
+function toggleMore(){
+  const mf=document.getElementById('moreFields');
+  mf.classList.toggle('on');
+  document.getElementById('moreToggle').textContent=mf.classList.contains('on')?'− Λιγότερα πεδία':'+ Περισσότερα πεδία';
+}
+
+function backToList(){
+  selectedBlock=null;
+  renderList();
+}
+
+async function ensureVisitId(dateStr){
+  if(visitIdByDate[dateStr])return visitIdByDate[dateStr];
+  const{data,error}=await supa.from('visits').insert({
+    winery_id:WINERY_ID,visit_date:dateStr,purpose:'Δειγματοληψία τρύγου'
+  }).select('id').single();
+  if(error)throw error;
+  visitIdByDate[dateStr]=data.id;
+  return data.id;
+}
+
+function val(id){const el=document.getElementById(id);return el&&el.value!==''?el.value:null;}
+
+async function saveEntry(){
+  const btn=document.getElementById('saveBtn');
+  const dateStr=document.getElementById('entryDate').value;
+  if(!dateStr){alert('Διάλεξε ημερομηνία.');return;}
+  btn.disabled=true;btn.textContent='Αποθήκευση...';
+  try{
+    const visitId=await ensureVisitId(dateStr);
+    const row={
+      block_id:selectedBlock.id,visit_id:visitId,observed_date:dateStr,
+      baume:val('ef_baume')?parseFloat(val('ef_baume')):null,
+      tartaric_acid:val('ef_tartaric')?parseFloat(val('ef_tartaric')):null,
+      ph:val('ef_ph')?parseFloat(val('ef_ph')):null,
+      berry_weight_g:val('ef_berry')?parseFloat(val('ef_berry')):null,
+      juice_yield:val('ef_juiceyield')?parseFloat(val('ef_juiceyield')):null,
+      yield_est_kg_ha:val('ef_yield')?parseFloat(val('ef_yield')):null,
+      harvest_window:val('ef_harvest'),
+      quality_outlook:val('ef_quality'),
+      note:val('ef_note')
+    };
+    const{data,error}=await supa.from('estimation_observations').insert(row).select('id').single();
+    if(error)throw error;
+    lastEntryByBlock[selectedBlock.id]={block_id:selectedBlock.id,observed_date:dateStr,baume:row.baume,ph:row.ph};
+    showToast();
+    backToList();
+  }catch(e){
+    console.error(e);
+    alert('Σφάλμα αποθήκευσης: '+(e.message||e));
+    btn.disabled=false;btn.textContent='Αποθήκευση';
+  }
+}
+
+function showToast(){
+  const t=document.getElementById('toast');
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),1600);
+}
+
+document.getElementById('entryDate').value=new Date().toISOString().slice(0,10);
+loadData();
+</script>
+
+</body>
+</html>
