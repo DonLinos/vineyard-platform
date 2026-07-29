@@ -266,6 +266,11 @@ function backToList(){
 
 async function ensureVisitId(dateStr){
   if(visitIdByDate[dateStr])return visitIdByDate[dateStr];
+  // Check the database first -- the in-memory cache resets on every page
+  // load, so without this check, reopening the form on the same date
+  // creates a brand new duplicate visit row each time.
+  const{data:existing}=await supa.from('visits').select('id').eq('winery_id',WINERY_ID).eq('visit_date',dateStr).limit(1).maybeSingle();
+  if(existing){visitIdByDate[dateStr]=existing.id;return existing.id;}
   const{data,error}=await supa.from('visits').insert({
     winery_id:WINERY_ID,visit_date:dateStr,purpose:'Δειγματοληψία τρύγου'
   }).select('id').single();
@@ -295,7 +300,15 @@ async function saveEntry(){
       quality_outlook:val('ef_quality'),
       note:val('ef_note')
     };
-    const{data,error}=await supa.from('estimation_observations').insert(row).select('id').single();
+    // If a sample already exists for this block on this date, update it
+    // instead of inserting a duplicate row.
+    const{data:existingObs}=await supa.from('estimation_observations').select('id').eq('block_id',selectedBlock.id).eq('observed_date',dateStr).limit(1).maybeSingle();
+    let error;
+    if(existingObs){
+      ({error}=await supa.from('estimation_observations').update(row).eq('id',existingObs.id));
+    }else{
+      ({error}=await supa.from('estimation_observations').insert(row));
+    }
     if(error)throw error;
     lastEntryByBlock[selectedBlock.id]={block_id:selectedBlock.id,observed_date:dateStr,baume:row.baume,ph:row.ph};
     showToast();
