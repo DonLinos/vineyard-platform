@@ -58,6 +58,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="access-check.js"></script>
 <script>
 const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
 const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
@@ -75,10 +76,13 @@ function fmtDate(d){
   return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
 }
 
+let currentPersonName='';
+
 async function requireAuthAndLoad(){
-  const{data:{session}}=await supa.auth.getSession();
-  if(!session){window.location.href='login.html';return;}
   if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id — επίστρεψε στη σύνδεση.</div>';return;}
+  const access=await requireAccess(supa,WINERY_ID);
+  if(!access)return; // requireAccess already redirected to access.html
+  currentPersonName=access.personName;
 
   const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
   document.getElementById('topbarTitle').textContent=(winery?winery.name:'')+' — Εργασίες';
@@ -123,7 +127,8 @@ async function requireAuthAndLoad(){
     note:r.note,
     date:r.observed_date||visitDateById[r.visit_id]||null,
     status:r.status||'pending',
-    completedDate:r.completed_date
+    completedDate:r.completed_date,
+    completedBy:r.completed_by
   }));
 
   render();
@@ -134,10 +139,12 @@ async function toggleDone(id){
   if(!order)return;
   const newStatus=order.status==='done'?'pending':'done';
   const newCompletedDate=newStatus==='done'?new Date().toISOString().slice(0,10):null;
-  const{error}=await supa.from('management_observations').update({status:newStatus,completed_date:newCompletedDate}).eq('id',id);
+  const newCompletedBy=newStatus==='done'?currentPersonName:null;
+  const{error}=await supa.from('management_observations').update({status:newStatus,completed_date:newCompletedDate,completed_by:newCompletedBy}).eq('id',id);
   if(error){alert('Σφάλμα ενημέρωσης: '+error.message);return;}
   order.status=newStatus;
   order.completedDate=newCompletedDate;
+  order.completedBy=newCompletedBy;
   render();
 }
 
@@ -187,7 +194,7 @@ function render(){
               </div>
               <div class="wo-tags">${o.practices.map(p=>`<span class="wo-tag">${p}</span>`).join('')}</div>
               ${o.note?`<div class="wo-note">${o.note}</div>`:''}
-              ${o.status==='done'&&o.completedDate?`<div class="wo-completed">✓ Έγινε ${fmtDate(o.completedDate)}</div>`:''}
+              ${o.status==='done'&&o.completedDate?`<div class="wo-completed">✓ Έγινε ${fmtDate(o.completedDate)}${o.completedBy?' — '+o.completedBy:''}</div>`:''}
             </div>
           </div>
         `).join('')}

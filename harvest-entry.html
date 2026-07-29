@@ -81,6 +81,7 @@
 <div class="toast" id="toast">Αποθηκεύτηκε ✓</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="access-check.js"></script>
 <script>
 const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
 const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
@@ -103,10 +104,13 @@ let selectedBlock=null;
 let visitIdByDate={};   // cache: { '2026-08-14': visitId }
 let lastEntryByBlock={}; // block_id -> {date, summary} for the has-entry badge
 
+let currentPersonName='';
+
 async function loadData(){
-  const{data:{session}}=await supa.auth.getSession();
-  if(!session){window.location.href='login.html';return;}
   if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id.</div>';return;}
+  const access=await requireAccess(supa,WINERY_ID);
+  if(!access)return;
+  currentPersonName=access.personName;
 
   const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
   document.getElementById('topbarTitle').textContent=(winery?winery.name:'')+' — Καταχώρηση Τρύγου';
@@ -298,7 +302,8 @@ async function saveEntry(){
       yield_est_kg_ha:val('ef_yield')?parseFloat(val('ef_yield')):null,
       harvest_window:val('ef_harvest'),
       quality_outlook:val('ef_quality'),
-      note:val('ef_note')
+      note:val('ef_note'),
+      recorded_by:currentPersonName
     };
     // If a sample already exists for this block on this date, update it
     // instead of inserting a duplicate row.
