@@ -588,7 +588,9 @@ function renderAreas(){
   updateMetrics();
   const c=document.getElementById('areasContainer');
   if(!state.areas.length){c.innerHTML='<div style="font-size:13px;color:#aaa;padding:.5rem 0 1rem;">No areas yet.</div>';return;}
-  c.innerHTML=state.areas.map((a,ai)=>{
+  const areaOrder=state.areas.map((a,i)=>i).sort((x,y)=>(state.areas[x].name||'').localeCompare(state.areas[y].name||'','el'));
+  c.innerHTML=areaOrder.map((ai)=>{
+    const a=state.areas[ai];
     const col=colorFor(ai);
     const vc=a.vineyards.length;
     const bc=a.vineyards.reduce((s,v)=>s+v.blocks.length,0);
@@ -609,7 +611,8 @@ function renderAreas(){
           <button class="btn btn-sm" onclick="openEditArea(${ai})">Edit area</button>
         </div>
         <div class="vineyards-lbl">${vc} vineyards · ${bc} blocks · ${ha.toFixed(1)} ha</div>
-        ${a.vineyards.map((v,vi)=>{
+        ${a.vineyards.map((v,i)=>i).sort((x,y)=>((a.vineyards[x].code||a.vineyards[x].grower||'')).localeCompare((a.vineyards[y].code||a.vineyards[y].grower||''),'el')).map((vi)=>{
+          const v=a.vineyards[vi];
           const vbc=v.blocks.length;
           const voc=v.blocks.reduce((s,b)=>s+b.observations.length,0);
           const vha=v.blocks.reduce((s,b)=>s+(parseFloat(b.ha)||0),0);
