@@ -27,8 +27,9 @@
   table.matrix{border-collapse:collapse;width:100%;font-family:-apple-system,sans-serif;font-size:13px;}
   table.matrix th,table.matrix td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);padding:8px 10px;text-align:center;white-space:nowrap;}
   table.matrix th{background:#f5f4f0;font-size:11px;color:var(--ink-dim);font-weight:600;}
-  table.matrix td:first-child,table.matrix th:first-child{text-align:left;position:sticky;left:0;background:#fff;font-weight:600;z-index:1;}
+  table.matrix td:first-child,table.matrix th:first-child{text-align:left;position:sticky;left:0;background:#fff;font-weight:600;z-index:1;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
   table.matrix th:first-child{background:#f5f4f0;z-index:2;}
+  table.matrix td.forecast-col,table.matrix th.forecast-col{background:#fbf3e6;font-weight:600;}
   table.matrix tr:last-child td{border-bottom:none;}
   table.matrix td:last-child,table.matrix th:last-child{border-right:none;}
   .cell-val{cursor:pointer;display:inline-block;min-width:34px;}
@@ -168,7 +169,7 @@ async function loadData(){
       if(!allVarietyData[variety][block.rowLabel])allVarietyData[variety][block.rowLabel]={};
       allVarietyData[variety][block.rowLabel][date]={
         baume:r.baume, tartaricAcid:r.tartaric_acid, ph:r.ph,
-        berryWeight:r.berry_weight_g, juiceYield:r.juice_yield
+        berryWeight:r.berry_weight_g, juiceYield:r.juice_yield, yieldEst:r.yield_est_kg_ha
       };
     });
   });
@@ -201,11 +202,22 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units){
 
   if(!dates.length)return'<div class="no-data">Δεν υπάρχουν δεδομένα.</div>';
 
+  // Πρόβλεψη απόδοσης: παίρνουμε την πιο πρόσφατη καταχωρημένη τιμή yieldEst ανά block
+  const forecastByBlock={};
+  blocks.forEach(b=>{
+    const recDates=Object.keys(blockMap[b]).sort();
+    for(let i=recDates.length-1;i>=0;i--){
+      const v=blockMap[b][recDates[i]].yieldEst;
+      if(v!==null&&v!==undefined){forecastByBlock[b]=v;break;}
+    }
+  });
+
   return `<div class="matrix-scroll"><table class="matrix">
-    <thead><tr><th>Block</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}</tr></thead>
+    <thead><tr><th>Block</th><th class="forecast-col">Πρόβλεψη (Kg)</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}</tr></thead>
     <tbody>
       ${blocks.map(b=>`<tr>
         <td>${b}</td>
+        <td class="forecast-col">${forecastByBlock[b]!==undefined?forecastByBlock[b]:'<span class="cell-empty">—</span>'}</td>
         ${dates.map(d=>{
           const rec=blockMap[b][d];
           if(!rec||rec[metric]===null||rec[metric]===undefined)return`<td><span class="cell-empty">—</span></td>`;
