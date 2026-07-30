@@ -162,7 +162,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="field"><span class="flbl">Inspector</span><input class="finp" id="hInspector" placeholder="Full name"></div>
     </div>
     <div class="g4">
-      <div class="field"><span class="flbl">Region</span><input class="finp" id="hRegion" value="Marathasa Valley, CY"></div>
+      <div class="field"><span class="flbl">Region</span><input class="finp" id="hRegion" placeholder="e.g. Marathasa Valley, CY"></div>
       <div class="field"><span class="flbl">Weather</span><input class="finp" id="hWeather" placeholder="e.g. Sunny 22°C"></div>
       <div class="field"><span class="flbl">Report No.</span><input class="finp" id="hReportNo" placeholder="MVR-2026-001"></div>
       <div class="field"><span class="flbl">Next visit</span><input class="finp" id="hNextVisit" type="date"></div>
@@ -208,6 +208,9 @@ if(!supabaseClient){
 // ─── WINERY ID (από το URL, μετά το login) + AUTH GUARD ───
 const urlParams=new URLSearchParams(window.location.search);
 const WINERY_ID=urlParams.get('winery_id');
+// Ξεχωριστό localStorage key ανά winery, ώστε τα header πεδία (Region, Weather, κλπ)
+// ενός winery να μη "διαρρέουν" σε άλλο winery στο ίδιο browser/device.
+function storageKey(){return'vineyardData_'+(WINERY_ID||'default');}
 
 async function requireAuth(){
   if(!supabaseClient)return true;
@@ -312,7 +315,7 @@ async function syncToSupabase(){
 }
 
 function saveState(){
-  try{localStorage.setItem('vineyardData',JSON.stringify({header:getHeader(),areas:state.areas}));}catch(e){}
+  try{localStorage.setItem(storageKey(),JSON.stringify({header:getHeader(),areas:state.areas}));}catch(e){}
 }
 
 // ─── Βοηθητικά για αυτόματη αποθήκευση παρατηρήσεων ───
@@ -554,7 +557,7 @@ async function loadState(){
   }else{
     // Fallback: localStorage (π.χ. πρώτη φορά, ή δεν υπάρχει σύνδεση)
     const isMarathasa=(document.getElementById('hWinery')?.value||'')==='Marathasa Winery';
-    const s=localStorage.getItem('vineyardData');
+    const s=localStorage.getItem(storageKey());
     if(s){
       try{
         const d=JSON.parse(s);
@@ -563,7 +566,7 @@ async function loadState(){
     }else{state.areas=isMarathasa?makeDefaultAreas():[];}
   }
   // Header πεδία πάντα από localStorage (ακόμα δεν τα έχουμε συνδέσει στο Supabase)
-  const s2=localStorage.getItem('vineyardData');
+  const s2=localStorage.getItem(storageKey());
   if(s2){
     try{
       const d2=JSON.parse(s2);
