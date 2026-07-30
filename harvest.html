@@ -30,6 +30,7 @@
   table.matrix td:first-child,table.matrix th:first-child{text-align:left;position:sticky;left:0;background:#fff;font-weight:600;z-index:1;max-width:120px;overflow:hidden;text-overflow:ellipsis;}
   table.matrix th:first-child{background:#f5f4f0;z-index:2;}
   table.matrix td.forecast-col,table.matrix th.forecast-col{background:#fbf3e6;font-weight:600;}
+  table.matrix td.actual-col,table.matrix th.actual-col{background:#eaf5ee;}
   table.matrix tr:last-child td{border-bottom:none;}
   table.matrix td:last-child,table.matrix th:last-child{border-right:none;}
   .cell-val{cursor:pointer;display:inline-block;min-width:34px;}
@@ -95,6 +96,8 @@ function fmtShortDate(d){
 
 let allVarietyData={}; // unfiltered, all years — { varietyName: { blockName: { date: {...} } } }
 let varietyData={};    // filtered to selectedYear — same shape, used by render/chart
+let allActualData={};  // unfiltered — { varietyName: { blockName: { harvestDate: kg } } }
+let actualData={};     // filtered to selectedYear
 let chemMetric='baume';
 let agroMetric='berryWeight';
 let availableYears=[];
@@ -114,8 +117,21 @@ function applyYearFilter(){
       });
     });
   });
+  actualData={};
+  Object.keys(allActualData).forEach(variety=>{
+    Object.keys(allActualData[variety]).forEach(block=>{
+      Object.keys(allActualData[variety][block]).forEach(date=>{
+        if(!selectedYear || date.slice(0,4)===String(selectedYear)){
+          if(!actualData[variety])actualData[variety]={};
+          if(!actualData[variety][block])actualData[variety][block]={};
+          actualData[variety][block][date]=allActualData[variety][block][date];
+        }
+      });
+    });
+  });
 }
 function setYear(y){selectedYear=y;applyYearFilter();render();}
+
 
 async function loadData(){
   if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id.</div>';return;}
@@ -155,7 +171,15 @@ async function loadData(){
     estRows=data||[];
   }
 
+  let actualRows=[];
+  if(blockIds.length){
+    const{data,error}=await supa.from('harvest_actuals').select('*').in('block_id',blockIds);
+    if(error)console.error('harvest_actuals load failed:',error);
+    else actualRows=data||[];
+  }
+
   allVarietyData={};
+  allActualData={};
   const yearSet=new Set();
   estRows.forEach(r=>{
     const block=blockById[r.block_id];
@@ -171,6 +195,17 @@ async function loadData(){
         baume:r.baume, tartaricAcid:r.tartaric_acid, ph:r.ph,
         berryWeight:r.berry_weight_g, juiceYield:r.juice_yield, yieldEst:r.yield_est_kg_ha
       };
+    });
+  });
+  actualRows.forEach(r=>{
+    const block=blockById[r.block_id];
+    if(!block||!r.harvest_date)return;
+    yearSet.add(r.harvest_date.slice(0,4));
+    const names=parseVarietyNames(block.variety);
+    names.forEach(variety=>{
+      if(!allActualData[variety])allActualData[variety]={};
+      if(!allActualData[variety][block.rowLabel])allActualData[variety][block.rowLabel]={};
+      allActualData[variety][block.rowLabel][r.harvest_date]=(allActualData[variety][block.rowLabel][r.harvest_date]||0)+(r.actual_kg||0);
     });
   });
 
@@ -194,7 +229,8 @@ const CHEM_UNITS={baume:'°', tartaricAcid:'g/L', ph:''};
 const AGRO_LABELS={berryWeight:'Βάρος ράγας', juiceYield:'Απόδοση χυμού'};
 const AGRO_UNITS={berryWeight:'g', juiceYield:'mg/g'};
 
-function buildMatrixHTML(blockMap, metric, allFields, labels, units){
+function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap){
+  actualMap=actualMap||{};
   const blocks=Object.keys(blockMap).sort();
   const allDates=new Set();
   blocks.forEach(b=>Object.keys(blockMap[b]).forEach(d=>allDates.add(d)));
@@ -212,12 +248,22 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units){
     }
   });
 
+  // Πραγματική ποσότητα: άθροισμα όλων των φάσεων τρύγου (harvest_actuals) ανά block
+  const actualByBlock={};
+  blocks.forEach(b=>{
+    const entries=actualMap[b];
+    if(!entries)return;
+    const total=Object.values(entries).reduce((s,v)=>s+(v||0),0);
+    if(total>0)actualByBlock[b]=total;
+  });
+
   return `<div class="matrix-scroll"><table class="matrix">
-    <thead><tr><th>Block</th><th class="forecast-col">Πρόβλεψη (Kg)</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}</tr></thead>
+    <thead><tr><th>Block</th><th class="forecast-col">Πρόβλεψη (Kg)</th><th class="forecast-col actual-col">Πραγματική ποσότητα (Kg)</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}</tr></thead>
     <tbody>
       ${blocks.map(b=>`<tr>
         <td>${b}</td>
         <td class="forecast-col">${forecastByBlock[b]!==undefined?forecastByBlock[b]:'<span class="cell-empty">—</span>'}</td>
+        <td class="forecast-col actual-col">${actualByBlock[b]!==undefined?actualByBlock[b]:'<span class="cell-empty">—</span>'}</td>
         ${dates.map(d=>{
           const rec=blockMap[b][d];
           if(!rec||rec[metric]===null||rec[metric]===undefined)return`<td><span class="cell-empty">—</span></td>`;
@@ -252,6 +298,7 @@ function render(){
 
   const html=varieties.map(variety=>{
     const blockMap=varietyData[variety];
+    const actualMap=actualData[variety]||{};
     const mode=sectionMode[variety]||'chem';
     const chemSection=`<div class="section-hdr">
         <span class="section-title">Χημικές αναλύσεις</span>
@@ -260,14 +307,14 @@ function render(){
           <button class="btn-chart" onclick="openBaumeChart('${variety.replace(/'/g,"\\'")}')">📈 Γράφημα Baumé</button>
         </div>
       </div>
-      ${buildMatrixHTML(blockMap, chemMetric, ['baume','tartaricAcid','ph'], CHEM_LABELS, CHEM_UNITS)}`;
+      ${buildMatrixHTML(blockMap, chemMetric, ['baume','tartaricAcid','ph'], CHEM_LABELS, CHEM_UNITS, actualMap)}`;
     const agroSection=`<div class="section-hdr">
         <span class="section-title">Αγρονομικές αναλύσεις</span>
         <div class="toggle-row">
           ${['berryWeight','juiceYield'].map(m=>`<button class="toggle-btn${agroMetric===m?' on':''}" onclick="setAgroMetric('${m}')">${AGRO_LABELS[m]}</button>`).join('')}
         </div>
       </div>
-      ${buildMatrixHTML(blockMap, agroMetric, ['berryWeight','juiceYield'], AGRO_LABELS, AGRO_UNITS)}`;
+      ${buildMatrixHTML(blockMap, agroMetric, ['berryWeight','juiceYield'], AGRO_LABELS, AGRO_UNITS, actualMap)}`;
     return `<div class="variety-block">
       <div class="variety-title">${variety}</div>
       <div class="section-toggle">
