@@ -480,22 +480,49 @@ async function loadFromSupabase(){
     if(aErr)throw aErr;
     if(!areasRows||!areasRows.length)return null;
 
+    // Ημερομηνίες επισκέψεων, για παρατηρήσεις χωρίς δικό τους observed_date
+    const{data:visitsRows,error:visErr}=await supabaseClient.from('visits').select('*').eq('winery_id',WINERY_ID);
+    if(visErr)throw visErr;
+    const visitDateById={};
+    (visitsRows||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
+    const withDate=(rows,mapFn)=>(rows||[]).map(r=>mapFn(r,r.observed_date||visitDateById[r.visit_id]||null));
+
     const areas=[];
     for(const a of areasRows){
       const{data:vyRows,error:vErr}=await supabaseClient.from('vineyards').select('*').eq('area_id',a.id);
       if(vErr)throw vErr;
       const{data:blockRows,error:bErr}=await supabaseClient.from('blocks').select('*').eq('area_id',a.id);
       if(bErr)throw bErr;
+
+      const blocksWithObs=[];
+      for(const b of (blockRows||[])){
+        const[bbchRes,insRes,disRes,manRes,estRes]=await Promise.all([
+          supabaseClient.from('bbch_observations').select('*').eq('block_id',b.id),
+          supabaseClient.from('insect_observations').select('*').eq('block_id',b.id),
+          supabaseClient.from('disease_observations').select('*').eq('block_id',b.id),
+          supabaseClient.from('management_observations').select('*').eq('block_id',b.id),
+          supabaseClient.from('estimation_observations').select('*').eq('block_id',b.id)
+        ]);
+        const observations=[
+          ...withDate(bbchRes.data,(r,date)=>({type:'bbch',bbch:r.bbch_stage,workOrder:r.work_order,scanCount:r.scan_count,note:r.note,date,dbId:r.id})),
+          ...withDate(insRes.data,(r,date)=>({type:'insects',presence:r.presence,species:r.species,population:r.population,stages:r.life_stages||[],note:r.note,date,dbId:r.id})),
+          ...withDate(disRes.data,(r,date)=>({type:'diseases',disease:r.disease,severity:r.severity,affectedPct:r.affected_pct,note:r.note,date,dbId:r.id})),
+          ...withDate(manRes.data,(r,date)=>({type:'management',practices:r.practices||[],note:r.note,date,status:r.status,dbId:r.id})),
+          ...withDate(estRes.data,(r,date)=>({type:'estimations',baume:r.baume,tartaricAcid:r.tartaric_acid,ph:r.ph,yieldEst:r.yield_est_kg_ha,harvestWindow:r.harvest_window,berryWeight:r.berry_weight_g,juiceYield:r.juice_yield,quality:r.quality_outlook,note:r.note,date,dbId:r.id}))
+        ];
+        blocksWithObs.push({
+          id:b.block_code,variety:b.variety||'',yearPlanted:b.year_planted||'',ha:b.hectares||'',
+          orientation:b.orientation||'',spacing:b.spacing||'',observations,dbId:b.id,_vineyardId:b.vineyard_id
+        });
+      }
+
       areas.push({
         name:a.name,gps:a.gps||'',altMin:a.alt_min||'',altMax:a.alt_max||'',
         rainfall:a.rainfall||'',avgTemp:a.avg_temp||'',clay:a.clay||'',sand:a.sand||'',silt:a.silt||'',
         soil:a.soil||'',soilPh:a.soil_ph||'',soilNote:a.soil_note||'',open:false,dbId:a.id,
         vineyards:(vyRows||[]).map(v=>({
           code:v.vineyard_code,grower:v.grower||'',gps:v.gps||'',open:false,dbId:v.id,
-          blocks:(blockRows||[]).filter(b=>b.vineyard_id===v.id).map(b=>({
-            id:b.block_code,variety:b.variety||'',yearPlanted:b.year_planted||'',ha:b.hectares||'',
-            orientation:b.orientation||'',spacing:b.spacing||'',observations:[],dbId:b.id
-          }))
+          blocks:blocksWithObs.filter(b=>b._vineyardId===v.id)
         }))
       });
     }
@@ -836,7 +863,19 @@ function obsOneLiner(obs){
   return'';
 }
 
-function deleteObs(ai,vi,bi,oi){state.areas[ai].vineyards[vi].blocks[bi].observations.splice(oi,1);openBlockDetail(ai,vi,bi);renderAreas();}
+const OBS_TABLE_BY_TYPE={bbch:'bbch_observations',insects:'insect_observations',diseases:'disease_observations',management:'management_observations',estimations:'estimation_observations'};
+async function deleteObs(ai,vi,bi,oi){
+  const obs=state.areas[ai].vineyards[vi].blocks[bi].observations[oi];
+  if(obs&&obs.dbId&&supabaseClient){
+    const table=OBS_TABLE_BY_TYPE[obs.type];
+    if(table){
+      const{error}=await supabaseClient.from(table).delete().eq('id',obs.dbId);
+      if(error){console.error('Delete από Supabase απέτυχε:',error);alert('Η διαγραφή απέτυχε στο cloud — δοκίμασε ξανά.');return;}
+    }
+  }
+  state.areas[ai].vineyards[vi].blocks[bi].observations.splice(oi,1);
+  openBlockDetail(ai,vi,bi);renderAreas();
+}
 function openAddObs(ai,vi,bi){editingObsCtx={ai,vi,bi};showModal('obsModalContainer',obsFormHTML(ai,vi,bi,{type:'bbch'}));}
 
 function obsFormHTML(ai,vi,bi,d){
@@ -875,7 +914,7 @@ function obsFormHTML(ai,vi,bi,d){
         <div class="field"><span class="flbl">Απόδοση χυμού (mg/g)</span><input class="finp" id="of_juiceyield" type="number" step="0.1" value="${d.juiceYield||''}"></div>
       </div>
       <div class="g2">
-        <div class="field"><span class="flbl">Yield estimate (kg/ha)</span><input class="finp" id="of_yield" type="number" value="${d.yieldEst||''}"></div>
+        <div class="field"><span class="flbl">Yield estimate (Kg)</span><input class="finp" id="of_yield" type="number" value="${d.yieldEst||''}"></div>
         <div class="field"><span class="flbl">Harvest window</span><input class="finp" id="of_harvest" value="${d.harvestWindow||''}"></div>
       </div>
       <div class="field" style="margin-top:10px;"><span class="flbl">Quality outlook</span>
