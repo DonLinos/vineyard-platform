@@ -263,7 +263,37 @@ function readyCard(b){
       <input type="date" id="date-${b.id}" value="${new Date().toISOString().slice(0,10)}">
       <button class="small" onclick="scheduleBlock('${b.id}')">📅 Προγραμματισμός</button>
     </div>
+    <div class="row-actions">
+      <button class="small ghost" onclick="toggleQuickHarvest('${b.id}')" id="qh-toggle-${b.id}">✅ Ήδη τρυγήθηκε</button>
+    </div>
+    <div class="row-actions" id="qh-form-${b.id}" style="display:none;">
+      <input type="date" id="qh-date-${b.id}" value="${new Date().toISOString().slice(0,10)}">
+      <input type="number" id="qh-kg-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1">
+      <button class="small" onclick="quickHarvestBlock('${b.id}')">Καταχώρηση</button>
+    </div>
   </div>`;
+}
+
+function toggleQuickHarvest(blockId){
+  const form=document.getElementById('qh-form-'+blockId);
+  form.style.display=(form.style.display==='none')?'flex':'none';
+}
+
+async function quickHarvestBlock(blockId){
+  const date=document.getElementById('qh-date-'+blockId).value;
+  const kg=document.getElementById('qh-kg-'+blockId).value;
+  if(!date){alert('Διάλεξε ημερομηνία.');return;}
+  if(!kg){alert('Γράψε τα πραγματικά kg.');return;}
+  const b=blocksData.find(x=>x.id===blockId);
+  const{error}=await supa.from('harvest_schedule').insert({
+    block_id:blockId,
+    scheduled_date:date,
+    estimated_kg:b?b.latestYieldEst:null,
+    actual_kg:parseFloat(kg),
+    created_by:currentPersonName
+  });
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  await loadAll();render();
 }
 
 function scheduledCard(b){
