@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Προγραμματισμός Τρύγου</title>
+<style>
+  :root{
+    --ink:#f2ede1; --ink-dim:#b9c2b3; --ink-faint:#7c8a78; --bg:#1d2620; --card:#26312a;
+    --line:#3a473e; --gold:#c99a3e; --gold-dim:#8f6f2c; --green:#4f9e5c; --orange:#d9a057; --danger:#d97757;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;min-height:100vh;min-height:100dvh;}
+  body{padding:20px 16px 60px;}
+  .wrap{max-width:640px;margin:0 auto;}
+  .back-link{display:inline-block;margin-bottom:14px;font-size:13px;color:var(--ink-dim);text-decoration:none;}
+  .topbar-title{font-family:Georgia,serif;font-weight:400;font-size:22px;margin:0 0 2px;}
+  .topbar-sub{font-size:13px;color:var(--ink-faint);margin:0 0 22px;}
+  h2.section{font-size:14px;letter-spacing:.06em;text-transform:uppercase;color:var(--gold);margin:26px 0 10px;}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:10px;}
+  .block-row{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+  .block-name{font-size:15px;font-weight:600;}
+  .block-meta{font-size:12px;color:var(--ink-dim);margin-top:2px;}
+  .badge{font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;white-space:nowrap;}
+  .badge.ready{background:rgba(201,154,62,.18);color:var(--gold);}
+  .badge.scheduled{background:rgba(217,160,87,.18);color:var(--orange);}
+  .badge.done{background:rgba(79,158,92,.18);color:var(--green);}
+  .row-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
+  input[type="date"],input[type="number"]{
+    background:#18201b;border:1px solid var(--line);border-radius:6px;color:var(--ink);
+    padding:8px 10px;font-size:14px;outline:none;
+  }
+  input[type="date"]:focus,input[type="number"]:focus{border-color:var(--gold-dim);}
+  button{
+    background:var(--gold);color:#241a08;border:none;border-radius:6px;
+    padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;
+  }
+  button:hover{background:#dcaa4c;}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--ink-dim);}
+  button.ghost:hover{border-color:var(--gold-dim);color:var(--ink);}
+  button.small{padding:6px 10px;font-size:12px;}
+  .no-data{color:var(--ink-faint);font-size:13px;padding:14px 0;text-align:center;}
+  .date-group{margin-bottom:16px;}
+  .date-heading{font-size:13px;color:var(--ink-dim);margin:0 0 6px;font-weight:600;}
+  .thresholds-toggle{font-size:12px;color:var(--ink-faint);text-decoration:underline;cursor:pointer;background:none;border:none;padding:0;margin-top:24px;}
+  .thresholds-panel{display:none;margin-top:10px;}
+  .thresholds-panel.open{display:block;}
+  .thresh-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);}
+  .thresh-row:last-child{border-bottom:none;}
+  .thresh-row input{width:70px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back-link" href="#" id="backLink">← Πίσω στα reports</a>
+  <h1 class="topbar-title" id="topbarTitle">Προγραμματισμός Τρύγου</h1>
+  <p class="topbar-sub" id="topbarSub"></p>
+  <div id="content"><div class="no-data">Φόρτωση δεδομένων...</div></div>
+
+  <button class="thresholds-toggle" id="threshToggle">⚙️ Ρύθμιση ορίων Baumé ανά ποικιλία</button>
+  <div class="thresholds-panel" id="threshPanel"></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// access-check.js
+// Κοινό helper για σελίδες που δέχονται είτε πραγματικό Supabase login (ο σύμβουλος)
+// είτε προσωπικό access code (εργαζόμενοι οινοποιείου, χωρίς email/password).
+// Καλείται ως: const access = await requireAccess(supa, WINERY_ID);
+// Επιστρέφει null (και κάνει redirect στο access.html) αν δεν υπάρχει έγκυρη πρόσβαση.
+// Αλλιώς επιστρέφει { method:'auth'|'code', personName, wineryId }.
+
+async function requireAccess(supa, wineryId) {
+  // 1) Έλεγχος πραγματικού Supabase login (σύμβουλος)
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session && session.user) {
+      if (wineryId) {
+        const { data: membership } = await supa
+          .from('memberships')
+          .select('winery_id')
+          .eq('user_id', session.user.id)
+          .eq('winery_id', wineryId)
+          .maybeSingle();
+        if (membership) {
+          return { method: 'auth', personName: session.user.email, wineryId };
+        }
+      } else {
+        return { method: 'auth', personName: session.user.email, wineryId: null };
+      }
+    }
+  } catch (e) {
+    console.warn('requireAccess: auth session check failed', e);
+  }
+
+  // 2) Έλεγχος access code session (εργαζόμενος)
+  try {
+    const raw = sessionStorage.getItem('accessSession');
+    if (raw) {
+      const acc = JSON.parse(raw);
+      if (acc && acc.wineryId && String(acc.wineryId) === String(wineryId)) {
+        return { method: 'code', personName: acc.personName, wineryId: acc.wineryId };
+      }
+    }
+  } catch (e) {
+    console.warn('requireAccess: access code session check failed', e);
+  }
+
+  // 3) Καμία έγκυρη πρόσβαση — redirect στο access.html
+  const currentPage = window.location.pathname.split('/').pop();
+  window.location.href = 'access.html?return=' + encodeURIComponent(currentPage);
+  return null;
+}
+</script>
+<script>
+const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
+const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
+const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const urlParams=new URLSearchParams(window.location.search);
+const WINERY_ID=urlParams.get('winery_id');
+document.getElementById('backLink').href='reports.html?winery_id='+WINERY_ID;
+
+const DEFAULT_THRESHOLD=12;
+let blocksData=[];      // {id, block_code, variety, vineyardCode, latestBaume, latestBaumeDate, latestYieldEst}
+let thresholdsByVariety={};
+let scheduleByBlock={};  // block_id -> schedule row (latest / open one)
+let currentPersonName='';
+
+function fmtDate(d){
+  if(!d)return'—';
+  const dt=new Date(d+'T00:00:00');
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+}
+
+async function requireAuthAndLoad(){
+  if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id — επίστρεψε στη σύνδεση.</div>';return;}
+  const access=await requireAccess(supa,WINERY_ID);
+  if(!access)return;
+  currentPersonName=access.personName;
+
+  const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+  document.getElementById('topbarSub').textContent=(winery?winery.name:'')+' — Προγραμματισμός & κατάσταση τρύγου ανά block';
+
+  await loadAll();
+  render();
+}
+
+async function loadAll(){
+  const{data:areasRows}=await supa.from('areas').select('id,name').eq('winery_id',WINERY_ID);
+  const areaIds=(areasRows||[]).map(a=>a.id);
+  if(!areaIds.length){blocksData=[];return;}
+
+  const{data:vineyardsRows}=await supa.from('vineyards').select('id,vineyard_code').in('area_id',areaIds);
+  const vineyardCodeById={};
+  (vineyardsRows||[]).forEach(v=>{vineyardCodeById[v.id]=v.vineyard_code;});
+
+  const{data:blockRows}=await supa.from('blocks').select('id,block_code,variety,vineyard_id').in('area_id',areaIds);
+  const blockIds=(blockRows||[]).map(b=>b.id);
+  if(!blockIds.length){blocksData=[];return;}
+
+  const{data:estRows}=await supa.from('estimation_observations').select('*').in('block_id',blockIds);
+  const{data:visitRows}=await supa.from('visits').select('id,visit_date').eq('winery_id',WINERY_ID);
+  const visitDateById={};
+  (visitRows||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
+
+  const latestByBlock={};
+  (estRows||[]).forEach(r=>{
+    const date=r.observed_date||visitDateById[r.visit_id]||null;
+    if(!date)return;
+    const prev=latestByBlock[r.block_id];
+    if(!prev||date>prev.date){
+      latestByBlock[r.block_id]={date,baume:r.baume,yieldEst:r.yield_est_kg_ha};
+    }
+  });
+
+  const{data:schedRows}=await supa.from('harvest_schedule').select('*').in('block_id',blockIds).order('scheduled_date',{ascending:true});
+  scheduleByBlock={};
+  (schedRows||[]).forEach(s=>{
+    // κρατάμε το πιο πρόσφατο ανοιχτό (χωρίς actual_kg) ή αλλιώς το τελευταίο ολοκληρωμένο
+    const prev=scheduleByBlock[s.block_id];
+    if(!prev){scheduleByBlock[s.block_id]=s;return;}
+    const prevOpen=(prev.actual_kg===null||prev.actual_kg===undefined);
+    const curOpen=(s.actual_kg===null||s.actual_kg===undefined);
+    if(curOpen&&!prevOpen)scheduleByBlock[s.block_id]=s;
+    else if(curOpen===prevOpen&&s.scheduled_date>prev.scheduled_date)scheduleByBlock[s.block_id]=s;
+  });
+
+  const{data:threshRows}=await supa.from('variety_thresholds').select('*').eq('winery_id',WINERY_ID);
+  thresholdsByVariety={};
+  (threshRows||[]).forEach(t=>{thresholdsByVariety[t.variety]=t.baume_threshold;});
+
+  blocksData=(blockRows||[]).map(b=>{
+    const est=latestByBlock[b.id];
+    return{
+      id:b.id,
+      blockCode:b.block_code,
+      variety:b.variety||'—',
+      vineyardCode:vineyardCodeById[b.vineyard_id]||'',
+      latestBaume:est?est.baume:null,
+      latestBaumeDate:est?est.date:null,
+      latestYieldEst:est?est.yieldEst:null
+    };
+  });
+}
+
+function thresholdFor(variety){
+  return thresholdsByVariety[variety]!==undefined?thresholdsByVariety[variety]:DEFAULT_THRESHOLD;
+}
+
+function render(){
+  const el=document.getElementById('content');
+  if(!blocksData.length){el.innerHTML='<div class="no-data">Δεν βρέθηκαν blocks.</div>';renderThresholds();return;}
+
+  const ready=[], scheduled=[], done=[];
+  blocksData.forEach(b=>{
+    const sched=scheduleByBlock[b.id];
+    if(sched&&sched.actual_kg!==null&&sched.actual_kg!==undefined){done.push(b);}
+    else if(sched){scheduled.push(b);}
+    else{
+      const th=thresholdFor(b.variety);
+      if(b.latestBaume!==null&&b.latestBaume!==undefined&&b.latestBaume>=th)ready.push(b);
+    }
+  });
+
+  let html='';
+
+  html+='<h2 class="section">🍇 Έτοιμα για προγραμματισμό ('+ready.length+')</h2>';
+  html+=ready.length?ready.map(b=>readyCard(b)).join(''):'<div class="no-data">Κανένα block πάνω από το όριο Baumé αυτή τη στιγμή.</div>';
+
+  html+='<h2 class="section">📅 Προγραμματισμένα ('+scheduled.length+')</h2>';
+  if(scheduled.length){
+    const byDate={};
+    scheduled.forEach(b=>{
+      const d=scheduleByBlock[b.id].scheduled_date;
+      (byDate[d]=byDate[d]||[]).push(b);
+    });
+    Object.keys(byDate).sort().forEach(d=>{
+      html+='<div class="date-group"><p class="date-heading">'+fmtDate(d)+'</p>';
+      html+=byDate[d].map(b=>scheduledCard(b)).join('');
+      html+='</div>';
+    });
+  }else{
+    html+='<div class="no-data">Δεν υπάρχουν προγραμματισμένα blocks.</div>';
+  }
+
+  html+='<h2 class="section">✅ Ολοκληρωμένα ('+done.length+')</h2>';
+  html+=done.length?done.map(b=>doneCard(b)).join(''):'<div class="no-data">Κανένα ακόμα.</div>';
+
+  el.innerHTML=html;
+  renderThresholds();
+}
+
+function readyCard(b){
+  return `<div class="card">
+    <div class="block-row">
+      <div>
+        <div class="block-name">${b.blockCode}${b.vineyardCode?' · '+b.vineyardCode:''}</div>
+        <div class="block-meta">${b.variety} · Baumé ${b.latestBaume}° (${fmtDate(b.latestBaumeDate)}) — όριο ${thresholdFor(b.variety)}°</div>
+      </div>
+      <span class="badge ready">Έτοιμο</span>
+    </div>
+    <div class="row-actions">
+      <input type="date" id="date-${b.id}" value="${new Date().toISOString().slice(0,10)}">
+      <button class="small" onclick="scheduleBlock('${b.id}')">📅 Προγραμματισμός</button>
+    </div>
+  </div>`;
+}
+
+function scheduledCard(b){
+  const s=scheduleByBlock[b.id];
+  return `<div class="card">
+    <div class="block-row">
+      <div>
+        <div class="block-name">${b.blockCode}${b.vineyardCode?' · '+b.vineyardCode:''}</div>
+        <div class="block-meta">${b.variety}${s.estimated_kg?' · πρόβλεψη '+s.estimated_kg+' kg':''}</div>
+      </div>
+      <span class="badge scheduled">Προγραμματισμένο</span>
+    </div>
+    <div class="row-actions">
+      <input type="number" id="actual-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1">
+      <button class="small" onclick="completeBlock('${b.id}','${s.id}')">✅ Ολοκλήρωση</button>
+      <button class="small ghost" onclick="unscheduleBlock('${b.id}','${s.id}')">Ακύρωση</button>
+    </div>
+  </div>`;
+}
+
+function doneCard(b){
+  const s=scheduleByBlock[b.id];
+  return `<div class="card">
+    <div class="block-row">
+      <div>
+        <div class="block-name">${b.blockCode}${b.vineyardCode?' · '+b.vineyardCode:''}</div>
+        <div class="block-meta">${b.variety} · τρυγήθηκε ${fmtDate(s.scheduled_date)} · ${s.actual_kg} kg</div>
+      </div>
+      <span class="badge done">Ολοκληρώθηκε</span>
+    </div>
+  </div>`;
+}
+
+async function scheduleBlock(blockId){
+  const date=document.getElementById('date-'+blockId).value;
+  if(!date){alert('Διάλεξε ημερομηνία.');return;}
+  const b=blocksData.find(x=>x.id===blockId);
+  const{error}=await supa.from('harvest_schedule').insert({
+    block_id:blockId,
+    scheduled_date:date,
+    estimated_kg:b?b.latestYieldEst:null,
+    created_by:currentPersonName
+  });
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  await loadAll();render();
+}
+
+async function completeBlock(blockId,scheduleId){
+  const val=document.getElementById('actual-'+blockId).value;
+  if(!val){alert('Γράψε τα πραγματικά kg.');return;}
+  const{error}=await supa.from('harvest_schedule').update({actual_kg:parseFloat(val),updated_at:new Date().toISOString()}).eq('id',scheduleId);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  await loadAll();render();
+}
+
+async function unscheduleBlock(blockId,scheduleId){
+  if(!confirm('Ακύρωση προγραμματισμού για αυτό το block;'))return;
+  const{error}=await supa.from('harvest_schedule').delete().eq('id',scheduleId);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  await loadAll();render();
+}
+
+function renderThresholds(){
+  const varieties=[...new Set(blocksData.map(b=>b.variety))].sort((a,b)=>a.localeCompare(b,'el'));
+  const panel=document.getElementById('threshPanel');
+  if(!varieties.length){panel.innerHTML='';return;}
+  panel.innerHTML=varieties.map(v=>`
+    <div class="thresh-row">
+      <span>${v}</span>
+      <span>
+        <input type="number" id="th-${cssId(v)}" value="${thresholdFor(v)}" step="0.5" min="0">
+        <button class="small" onclick="saveThreshold('${v.replace(/'/g,"\\'")}')">Αποθήκευση</button>
+      </span>
+    </div>`).join('');
+}
+function cssId(s){return s.replace(/[^a-zA-Z0-9]/g,'_');}
+
+async function saveThreshold(variety){
+  const val=parseFloat(document.getElementById('th-'+cssId(variety)).value);
+  if(isNaN(val)){alert('Μη έγκυρη τιμή.');return;}
+  const{error}=await supa.from('variety_thresholds').upsert({
+    winery_id:WINERY_ID,variety,baume_threshold:val,updated_at:new Date().toISOString()
+  },{onConflict:'winery_id,variety'});
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  thresholdsByVariety[variety]=val;
+  render();
+}
+
+document.getElementById('threshToggle').addEventListener('click',()=>{
+  document.getElementById('threshPanel').classList.toggle('open');
+});
+
+requireAuthAndLoad();
+</script>
+</body>
+</html>

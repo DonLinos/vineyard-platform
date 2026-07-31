@@ -58,7 +58,56 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-<script src="access-check.js"></script>
+<script>
+// access-check.js
+// Κοινό helper για σελίδες που δέχονται είτε πραγματικό Supabase login (ο σύμβουλος)
+// είτε προσωπικό access code (εργαζόμενοι οινοποιείου, χωρίς email/password).
+// Καλείται ως: const access = await requireAccess(supa, WINERY_ID);
+// Επιστρέφει null (και κάνει redirect στο access.html) αν δεν υπάρχει έγκυρη πρόσβαση.
+// Αλλιώς επιστρέφει { method:'auth'|'code', personName, wineryId }.
+
+async function requireAccess(supa, wineryId) {
+  // 1) Έλεγχος πραγματικού Supabase login (σύμβουλος)
+  try {
+    const { data: { session } } = await supa.auth.getSession();
+    if (session && session.user) {
+      if (wineryId) {
+        const { data: membership } = await supa
+          .from('memberships')
+          .select('winery_id')
+          .eq('user_id', session.user.id)
+          .eq('winery_id', wineryId)
+          .maybeSingle();
+        if (membership) {
+          return { method: 'auth', personName: session.user.email, wineryId };
+        }
+      } else {
+        return { method: 'auth', personName: session.user.email, wineryId: null };
+      }
+    }
+  } catch (e) {
+    console.warn('requireAccess: auth session check failed', e);
+  }
+
+  // 2) Έλεγχος access code session (εργαζόμενος)
+  try {
+    const raw = sessionStorage.getItem('accessSession');
+    if (raw) {
+      const acc = JSON.parse(raw);
+      if (acc && acc.wineryId && String(acc.wineryId) === String(wineryId)) {
+        return { method: 'code', personName: acc.personName, wineryId: acc.wineryId };
+      }
+    }
+  } catch (e) {
+    console.warn('requireAccess: access code session check failed', e);
+  }
+
+  // 3) Καμία έγκυρη πρόσβαση — redirect στο access.html
+  const currentPage = window.location.pathname.split('/').pop();
+  window.location.href = 'access.html?return=' + encodeURIComponent(currentPage);
+  return null;
+}
+</script>
 <script>
 const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
 const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
