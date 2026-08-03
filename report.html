@@ -339,7 +339,15 @@ function obsShortPills(b){
   if(mgmt&&(mgmt.practices||[]).length)pills.push(`<span class="pill p-man">${mgmt.practices.slice(0,2).join(', ')}</span>`);
 
   const est=latestOfType(b,'estimations');
-  if(est&&est.baume)pills.push(`<span class="pill p-est">Baumé ${est.baume}°</span>`);
+  if(est){
+    if(est.baume)pills.push(`<span class="pill p-est">Baumé ${est.baume}°</span>`);
+    else if(est.yieldEst)pills.push(`<span class="pill p-est">Yield est. ${est.yieldEst} kg/ha</span>`);
+    else if(est.berryWeight)pills.push(`<span class="pill p-est">Berry wt. ${est.berryWeight}g</span>`);
+    else if(est.tartaricAcid)pills.push(`<span class="pill p-est">TA ${est.tartaricAcid}</span>`);
+    else if(est.ph)pills.push(`<span class="pill p-est">pH ${est.ph}</span>`);
+    else if(est.juiceYield)pills.push(`<span class="pill p-est">Juice yield ${est.juiceYield}</span>`);
+    else pills.push(`<span class="pill p-est">Estimation logged</span>`);
+  }
 
   if(bbch&&bbch.workOrder)pills.push(`<span class="pill p-work">Work order</span>`);
 
@@ -495,18 +503,13 @@ function render(data){
 }
 
 (async()=>{
+  if(!WINERY_ID){
+    document.getElementById('reportContent').innerHTML='<div class="no-data">No winery selected. Open this report via a link that includes ?winery_id=...</div>';
+    return;
+  }
   const live=await loadFromSupabaseLive();
   if(live){render(live);return;}
-
-  const saved=localStorage.getItem('vineyardData');
-  if(saved){
-    try{render(JSON.parse(saved));}catch(e){document.getElementById('reportContent').innerHTML='<div class="no-data">Error loading data. Please export data from admin.html first.</div>';}
-  }else{
-    fetch('vineyard-data.json')
-      .then(r=>r.json())
-      .then(d=>render(d))
-      .catch(()=>{document.getElementById('reportContent').innerHTML='<div class="no-data">No data found. Open this report via admin.html (with ?winery_id=... in the link), or export data from admin.html first.</div>';});
-  }
+  document.getElementById('reportContent').innerHTML='<div class="no-data">Could not load report data from the database. Please check your connection and try again, or contact your consultant.</div>';
 })();
 </script>
 </body>
