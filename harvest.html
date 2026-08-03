@@ -222,8 +222,8 @@ async function loadData(){
 
   let actualRows=[];
   if(blockIds.length){
-    const{data,error}=await supa.from('harvest_actuals').select('*').in('block_id',blockIds);
-    if(error)console.error('harvest_actuals load failed:',error);
+    const{data,error}=await supa.from('harvest_schedule').select('block_id,scheduled_date,actual_kg').in('block_id',blockIds).not('actual_kg','is',null);
+    if(error)console.error('harvest_schedule load failed:',error);
     else actualRows=data||[];
   }
 
@@ -248,13 +248,13 @@ async function loadData(){
   });
   actualRows.forEach(r=>{
     const block=blockById[r.block_id];
-    if(!block||!r.harvest_date)return;
-    yearSet.add(r.harvest_date.slice(0,4));
+    if(!block||!r.scheduled_date)return;
+    yearSet.add(r.scheduled_date.slice(0,4));
     const names=parseVarietyNames(block.variety);
     names.forEach(variety=>{
       if(!allActualData[variety])allActualData[variety]={};
       if(!allActualData[variety][block.rowLabel])allActualData[variety][block.rowLabel]={};
-      allActualData[variety][block.rowLabel][r.harvest_date]=(allActualData[variety][block.rowLabel][r.harvest_date]||0)+(r.actual_kg||0);
+      allActualData[variety][block.rowLabel][r.scheduled_date]=(allActualData[variety][block.rowLabel][r.scheduled_date]||0)+(r.actual_kg||0);
     });
   });
 
@@ -297,7 +297,7 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap){
     }
   });
 
-  // Πραγματική ποσότητα: άθροισμα όλων των φάσεων τρύγου (harvest_actuals) ανά block
+  // Πραγματική ποσότητα: άθροισμα όλων των φάσεων τρύγου (harvest_schedule) ανά block
   const actualByBlock={};
   blocks.forEach(b=>{
     const entries=actualMap[b];
