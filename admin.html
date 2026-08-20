@@ -14,6 +14,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 .topbar button.primary{background:#2d6a4f;border-color:#2d6a4f;}
 .app{max-width:900px;margin:0 auto;padding:1.25rem;}
 .sec-lbl{font-size:11px;font-weight:600;color:#666;text-transform:uppercase;letter-spacing:.08em;margin:1.5rem 0 .5rem;}
+.search-bar{display:flex;gap:8px;margin-bottom:.75rem;}
+.search-bar .finp{flex:1;}
 .card{background:#fff;border:1px solid #e5e5e5;border-radius:12px;padding:1.25rem;margin-bottom:.75rem;}
 .g2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
 .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
@@ -181,6 +183,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 
 
   <div class="sec-lbl">Areas</div>
+  <div class="search-bar">
+    <input class="finp" id="areaSearchInput" placeholder="Αναζήτηση με όνομα παραγωγού ή περιοχή (Area)..." oninput="setSearch(this.value)">
+    <button class="btn btn-sm" onclick="clearSearch()" title="Καθαρισμός αναζήτησης">✕</button>
+  </div>
   <div id="areasContainer"></div>
   <button class="btn btn-dashed" onclick="openAddArea()">+ Add area</button>
 </div>
@@ -241,6 +247,7 @@ const VARIETY_LIST=['XNS — Xynisteri','YND — Yiannoudi','SRH — Syrah','SVB
 const QUALITY=['Excellent','Good','Fair','Poor'];
 
 let state={areas:[]};
+let searchQuery='';
 let editingAreaIdx=null;
 let editingVineyardCtx=null;
 let editingBlockCtx=null;
@@ -252,6 +259,30 @@ let scanResults=[];
 let scanCtx=null;
 
 function colorFor(i){return AREA_COLORS[i%AREA_COLORS.length];}
+
+// ─── SEARCH (κατά όνομα παραγωγού ή περιοχής/Area, με λέξεις-κλειδιά) ───
+function setSearch(v){searchQuery=(v||'').trim();renderAreas();}
+function clearSearch(){searchQuery='';const el=document.getElementById('areaSearchInput');if(el)el.value='';renderAreas();}
+// Επιτρέπει πολλαπλές λέξεις-κλειδιά χωρισμένες με κενό — όλες πρέπει να ταιριάζουν κάπου στο κείμενο
+function searchKeywords(){return searchQuery.toLowerCase().split(/\s+/).filter(Boolean);}
+function textMatchesKeywords(text,keywords){
+  const t=(text||'').toLowerCase();
+  return keywords.every(k=>t.includes(k));
+}
+function areaMatchesSearch(a){
+  if(!searchQuery)return true;
+  const kws=searchKeywords();
+  const haystack=a.name||'';
+  if(textMatchesKeywords(haystack,kws))return true;
+  return a.vineyards.some(v=>vineyardMatchesSearch(a,v));
+}
+function vineyardMatchesSearch(a,v){
+  if(!searchQuery)return true;
+  const kws=searchKeywords();
+  if(textMatchesKeywords(a.name||'',kws))return true; // ταίριασμα στην περιοχή -> δείξε όλους τους αμπελώνες της
+  const haystack=(v.code||'')+' '+(v.grower||'');
+  return textMatchesKeywords(haystack,kws);
+}
 
 function saveApiKey(){} // δεν χρειάζεται πια — το κλειδί ζει κρυφό στο Supabase
 function loadApiKey(){return '';}
@@ -618,7 +649,13 @@ function renderAreas(){
   updateMetrics();
   const c=document.getElementById('areasContainer');
   if(!state.areas.length){c.innerHTML='<div style="font-size:13px;color:#aaa;padding:.5rem 0 1rem;">No areas yet.</div>';return;}
-  const areaOrder=state.areas.map((a,i)=>i).sort((x,y)=>(state.areas[x].name||'').localeCompare(state.areas[y].name||'','el'));
+  const areaOrder=state.areas.map((a,i)=>i)
+    .filter(ai=>areaMatchesSearch(state.areas[ai]))
+    .sort((x,y)=>(state.areas[x].name||'').localeCompare(state.areas[y].name||'','el'));
+  if(!areaOrder.length){
+    c.innerHTML='<div style="font-size:13px;color:#aaa;padding:.5rem 0 1rem;">Καμία περιοχή ή παραγωγός δεν ταιριάζει με την αναζήτηση.</div>';
+    return;
+  }
   c.innerHTML=areaOrder.map((ai)=>{
     const a=state.areas[ai];
     const col=colorFor(ai);
@@ -626,7 +663,8 @@ function renderAreas(){
     const bc=a.vineyards.reduce((s,v)=>s+v.blocks.length,0);
     const oc=a.vineyards.reduce((s,v)=>s+v.blocks.reduce((ss,b)=>ss+b.observations.length,0),0);
     const ha=a.vineyards.reduce((s,v)=>s+v.blocks.reduce((ss,b)=>ss+(parseFloat(b.ha)||0),0),0);
-    const body=a.open?`
+    const aOpen=searchQuery?true:a.open; // κατά την αναζήτηση, ξεδίπλωσε αυτόματα ό,τι ταιριάζει
+    const body=aOpen?`
       <div class="area-body">
         <div class="static-grid">
           <div class="static-cell"><div class="sc-lbl">GPS</div><div class="sc-val">${a.gps||'—'}</div></div>
@@ -641,19 +679,22 @@ function renderAreas(){
           <button class="btn btn-sm" onclick="openEditArea(${ai})">Edit area</button>
         </div>
         <div class="vineyards-lbl">${vc} vineyards · ${bc} blocks · ${ha.toFixed(1)} ha</div>
-        ${a.vineyards.map((v,i)=>i).sort((x,y)=>((a.vineyards[x].code||a.vineyards[x].grower||'')).localeCompare((a.vineyards[y].code||a.vineyards[y].grower||''),'el')).map((vi)=>{
+        ${a.vineyards.map((v,i)=>i)
+          .filter(vi=>vineyardMatchesSearch(a,a.vineyards[vi]))
+          .sort((x,y)=>((a.vineyards[x].code||a.vineyards[x].grower||'')).localeCompare((a.vineyards[y].code||a.vineyards[y].grower||''),'el')).map((vi)=>{
           const v=a.vineyards[vi];
           const vbc=v.blocks.length;
           const voc=v.blocks.reduce((s,b)=>s+b.observations.length,0);
           const vha=v.blocks.reduce((s,b)=>s+(parseFloat(b.ha)||0),0);
+          const vOpen=searchQuery?true:v.open;
           return`<div class="vineyard-card">
             <div class="vineyard-header" onclick="toggleVineyard(${ai},${vi})">
               <span class="vy-code">${v.code}</span>
               <span class="vy-grower">${v.grower||''}</span>
               <span class="vy-meta">${vbc} block${vbc!==1?'s':''} · ${vha.toFixed(1)} ha · ${voc} obs</span>
-              <span class="chev ${v.open?'open':''}">▾</span>
+              <span class="chev ${vOpen?'open':''}">▾</span>
             </div>
-            ${v.open?`<div class="vineyard-body">
+            ${vOpen?`<div class="vineyard-body">
               <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:.5rem;">
                 <button class="btn btn-sm btn-danger" onclick="deleteVineyard(${ai},${vi})">Delete vineyard</button>
                 <button class="btn btn-sm" onclick="openEditVineyard(${ai},${vi})">Edit vineyard</button>
@@ -686,7 +727,7 @@ function renderAreas(){
         <div class="area-dot" style="background:${col};"></div>
         <span class="area-title">${a.name}</span>
         <span class="area-meta">${vc} vineyards · ${bc} blocks · ${ha.toFixed(1)} ha · ${oc} obs</span>
-        <span class="chev ${a.open?'open':''}">▾</span>
+        <span class="chev ${aOpen?'open':''}">▾</span>
       </div>${body}</div>`;
   }).join('');
   saveState();
