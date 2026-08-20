@@ -237,7 +237,7 @@ const STAGES=['Egg','L1','L2','L3','L4','Adult'];
 const DISEASES=['Powdery mildew','Downy mildew','Botrytis'];
 const SEVERITY=['Trace','Low','Moderate','High','Severe'];
 const MGMT=['Spraying','Pruning','Shoot positioning','Hedging','Leaf removal','Green harvest','Irrigation','Soil tillage','Fertilisation','Suckering','Tie-down','Other'];
-const VARIETY_LIST=['XNS — Xynisteri','YND — Yiannoudi','SRH — Syrah','SVB — Sauvignon Blanc','ZFD — Zinfandel','MTR — Mataro','GRN — Grenache','PRM — Promara','MSF — Moschofilero','SRH/YND — Syrah/Yiannoudi','YND/XNS — Yiannoudi/Xynisteri','Other'];
+const VARIETY_LIST=['XNS — Xynisteri','YND — Yiannoudi','SRH — Syrah','SVB — Sauvignon Blanc','ZFD — Zinfandel','MTR — Mataro','GRN — Grenache','PRM — Promara','MSF — Moschofilero','CSV — Cabernet Sauvignon','CFR — Cabernet Franc','LFK — Lefkada','SRH/YND — Syrah/Yiannoudi','YND/XNS — Yiannoudi/Xynisteri','Other'];
 const QUALITY=['Excellent','Good','Fair','Poor'];
 
 let state={areas:[]};
@@ -797,10 +797,30 @@ function blockModalHTML(d){
   </div></div>`;
 }
 
-function saveBlock(){
+async function saveBlock(){
   const{ai,vi,bi}=editingBlockCtx;
   const d={id:document.getElementById('mb_id').value,variety:document.getElementById('mb_variety').value,yearPlanted:document.getElementById('mb_year').value,orientation:document.getElementById('mb_orient').value,ha:document.getElementById('mb_ha').value,spacing:document.getElementById('mb_spacing').value,observations:bi!==null?state.areas[ai].vineyards[vi].blocks[bi].observations:[]};
-  if(bi!==null){d.dbId=state.areas[ai].vineyards[vi].blocks[bi].dbId;state.areas[ai].vineyards[vi].blocks[bi]=d;}
+  if(bi!==null){
+    d.dbId=state.areas[ai].vineyards[vi].blocks[bi].dbId;
+    state.areas[ai].vineyards[vi].blocks[bi]=d;
+    // ΣΗΜΑΝΤΙΚΟ: πριν, το edit ενός ΥΠΑΡΧΟΝΤΟΣ block ενημέρωνε μόνο την τοπική μνήμη/localStorage —
+    // ποτέ δεν έστελνε την αλλαγή (π.χ. νέα ποικιλία) πίσω στο Supabase. Το report διαβάζει ζωντανά
+    // από το Supabase, οπότε η αλλαγή "χανόταν" εκεί. Τώρα κάνουμε πραγματικό update στο cloud.
+    if(d.dbId&&supabaseClient){
+      const{error}=await supabaseClient.from('blocks').update({
+        block_code:d.id,
+        variety:d.variety||null,
+        year_planted:d.yearPlanted||null,
+        hectares:d.ha?parseFloat(d.ha):null,
+        orientation:d.orientation||null,
+        spacing:d.spacing||null
+      }).eq('id',d.dbId);
+      if(error){
+        console.error('Block update στο Supabase απέτυχε:',error);
+        alert('Η αποθήκευση στο cloud απέτυχε — δοκίμασε ξανά. (Οι αλλαγές έμειναν προς το παρόν μόνο τοπικά.)');
+      }
+    }
+  }
   else state.areas[ai].vineyards[vi].blocks.push(d);
   closeModal('blockModalContainer');renderAreas();
   openBlockDetail(ai,vi,bi!==null?bi:state.areas[ai].vineyards[vi].blocks.length-1);
