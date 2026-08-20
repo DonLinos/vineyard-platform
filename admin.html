@@ -693,7 +693,41 @@ function renderAreas(){
 }
 
 function toggleArea(ai){state.areas[ai].open=!state.areas[ai].open;renderAreas();}
-function deleteArea(ai){if(confirm('Delete area and all vineyards/blocks?')){state.areas.splice(ai,1);renderAreas();}}
+
+// ─── Cascade delete helper: σβήνει όλες τις παρατηρήσεις + τα ίδια τα blocks στο Supabase ───
+// (OBS_TABLE_BY_TYPE ορίζεται παρακάτω στο αρχείο, αλλά επειδή αυτή η συνάρτηση καλείται μόνο
+// αφού έχει τρέξει ολόκληρο το script μία φορά, είναι ήδη διαθέσιμη τη στιγμή που χρειάζεται.)
+async function deleteBlocksCascade(blockIds){
+  if(!blockIds||!blockIds.length||!supabaseClient)return;
+  for(const table of Object.values(OBS_TABLE_BY_TYPE)){
+    const{error}=await supabaseClient.from(table).delete().in('block_id',blockIds);
+    if(error)throw error;
+  }
+  const{error:bErr}=await supabaseClient.from('blocks').delete().in('id',blockIds);
+  if(bErr)throw bErr;
+}
+
+async function deleteArea(ai){
+  if(!confirm('Delete area and all vineyards/blocks?'))return;
+  const area=state.areas[ai];
+  if(area.dbId&&supabaseClient){
+    try{
+      const{data:blockRows,error:qErr}=await supabaseClient.from('blocks').select('id').eq('area_id',area.dbId);
+      if(qErr)throw qErr;
+      await deleteBlocksCascade((blockRows||[]).map(b=>b.id));
+      const{error:vyErr}=await supabaseClient.from('vineyards').delete().eq('area_id',area.dbId);
+      if(vyErr)throw vyErr;
+      const{error:aErr}=await supabaseClient.from('areas').delete().eq('id',area.dbId);
+      if(aErr)throw aErr;
+    }catch(e){
+      console.error('Area delete στο Supabase απέτυχε:',e);
+      alert('Η διαγραφή απέτυχε στο cloud — δοκίμασε ξανά.');
+      return;
+    }
+  }
+  state.areas.splice(ai,1);
+  renderAreas();
+}
 function toggleVineyard(ai,vi){state.areas[ai].vineyards[vi].open=!state.areas[ai].vineyards[vi].open;renderAreas();}
 function showModal(id,html){document.getElementById(id).innerHTML=html;}
 function closeModal(id){document.getElementById(id).innerHTML='';}
@@ -729,12 +763,32 @@ function areaModalHTML(d){
   </div></div>`;
 }
 
-function saveArea(){
+async function saveArea(){
   const clay=parseInt(document.getElementById('ma_clay').value)||0;
   const sand=parseInt(document.getElementById('ma_sand').value)||0;
   const silt=parseInt(document.getElementById('ma_silt').value)||0;
   const d={name:document.getElementById('ma_name').value,gps:document.getElementById('ma_gps').value,altMin:document.getElementById('ma_altMin').value,altMax:document.getElementById('ma_altMax').value,rainfall:document.getElementById('ma_rain').value,avgTemp:document.getElementById('ma_temp').value,clay,sand,silt,soil:(clay||sand||silt)?`${clay}% clay · ${sand}% sand · ${silt}% silt`:'',soilPh:document.getElementById('ma_ph').value,soilNote:document.getElementById('ma_soilnote').value,open:true,vineyards:editingAreaIdx!==null?state.areas[editingAreaIdx].vineyards:[]};
-  if(editingAreaIdx!==null)state.areas[editingAreaIdx]=d;else state.areas.push(d);
+  if(editingAreaIdx!==null){
+    // ΣΗΜΑΝΤΙΚΟ: πριν, το edit μιας ΥΠΑΡΧΟΥΣΑΣ περιοχής (α) δεν έστελνε ποτέ την αλλαγή στο Supabase,
+    // και (β) έχανε το dbId της περιοχής τοπικά — με risk να δημιουργηθεί διπλότυπη εγγραφή στο cloud
+    // αν κάτι άλλο τη συγχρόνιζε αργότερα. Τώρα κρατάμε το dbId και κάνουμε πραγματικό update στο cloud.
+    d.dbId=state.areas[editingAreaIdx].dbId;
+    state.areas[editingAreaIdx]=d;
+    if(d.dbId&&supabaseClient){
+      const{error}=await supabaseClient.from('areas').update({
+        name:d.name,gps:d.gps||null,
+        alt_min:d.altMin?parseInt(d.altMin):null,alt_max:d.altMax?parseInt(d.altMax):null,
+        rainfall:d.rainfall?parseInt(d.rainfall):null,avg_temp:d.avgTemp?parseFloat(d.avgTemp):null,
+        clay:d.clay?parseFloat(d.clay):null,sand:d.sand?parseFloat(d.sand):null,silt:d.silt?parseFloat(d.silt):null,
+        soil:d.soil||null,soil_ph:d.soilPh?parseFloat(d.soilPh):null,soil_note:d.soilNote||null
+      }).eq('id',d.dbId);
+      if(error){
+        console.error('Area update στο Supabase απέτυχε:',error);
+        alert('Η αποθήκευση στο cloud απέτυχε — δοκίμασε ξανά. (Οι αλλαγές έμειναν προς το παρόν μόνο τοπικά.)');
+      }
+    }
+  }
+  else state.areas.push(d);
   closeModal('modalContainer');renderAreas();
 }
 
@@ -757,15 +811,46 @@ function vineyardModalHTML(d){
   </div></div>`;
 }
 
-function saveVineyard(){
+async function saveVineyard(){
   const{ai,vi}=editingVineyardCtx;
   const d={code:document.getElementById('mv_code').value,grower:document.getElementById('mv_grower').value,gps:document.getElementById('mv_gps').value,open:true,blocks:vi!==null?state.areas[ai].vineyards[vi].blocks:[]};
-  if(vi!==null){d.dbId=state.areas[ai].vineyards[vi].dbId;state.areas[ai].vineyards[vi]=d;}
+  if(vi!==null){
+    d.dbId=state.areas[ai].vineyards[vi].dbId;
+    state.areas[ai].vineyards[vi]=d;
+    // Ίδιο πρόβλημα με τα areas/blocks: το edit ενός υπάρχοντος vineyard δεν έφτανε ποτέ στο Supabase.
+    if(d.dbId&&supabaseClient){
+      const{error}=await supabaseClient.from('vineyards').update({
+        vineyard_code:d.code,grower:d.grower||null,gps:d.gps||null
+      }).eq('id',d.dbId);
+      if(error){
+        console.error('Vineyard update στο Supabase απέτυχε:',error);
+        alert('Η αποθήκευση στο cloud απέτυχε — δοκίμασε ξανά. (Οι αλλαγές έμειναν προς το παρόν μόνο τοπικά.)');
+      }
+    }
+  }
   else state.areas[ai].vineyards.push(d);
   closeModal('modalContainer');renderAreas();
 }
 
-function deleteVineyard(ai,vi){if(confirm('Delete vineyard and all its blocks?')){state.areas[ai].vineyards.splice(vi,1);renderAreas();}}
+async function deleteVineyard(ai,vi){
+  if(!confirm('Delete vineyard and all its blocks?'))return;
+  const vy=state.areas[ai].vineyards[vi];
+  if(vy.dbId&&supabaseClient){
+    try{
+      const{data:blockRows,error:qErr}=await supabaseClient.from('blocks').select('id').eq('vineyard_id',vy.dbId);
+      if(qErr)throw qErr;
+      await deleteBlocksCascade((blockRows||[]).map(b=>b.id));
+      const{error:vErr}=await supabaseClient.from('vineyards').delete().eq('id',vy.dbId);
+      if(vErr)throw vErr;
+    }catch(e){
+      console.error('Vineyard delete στο Supabase απέτυχε:',e);
+      alert('Η διαγραφή απέτυχε στο cloud — δοκίμασε ξανά.');
+      return;
+    }
+  }
+  state.areas[ai].vineyards.splice(vi,1);
+  renderAreas();
+}
 
 // ─── BLOCK CRUD (child του vineyard, ένα ανά ποικιλία) ───
 function openAddBlock(ai,vi){editingBlockCtx={ai,vi,bi:null};showModal('blockModalContainer',blockModalHTML({}));}
@@ -826,7 +911,21 @@ async function saveBlock(){
   openBlockDetail(ai,vi,bi!==null?bi:state.areas[ai].vineyards[vi].blocks.length-1);
 }
 
-function deleteBlock(ai,vi,bi){if(confirm('Delete block?')){state.areas[ai].vineyards[vi].blocks.splice(bi,1);closeModal('obsModalContainer');renderAreas();}}
+async function deleteBlock(ai,vi,bi){
+  if(!confirm('Delete block?'))return;
+  const block=state.areas[ai].vineyards[vi].blocks[bi];
+  if(block.dbId&&supabaseClient){
+    try{
+      await deleteBlocksCascade([block.dbId]);
+    }catch(e){
+      console.error('Block delete στο Supabase απέτυχε:',e);
+      alert('Η διαγραφή απέτυχε στο cloud — δοκίμασε ξανά.');
+      return;
+    }
+  }
+  state.areas[ai].vineyards[vi].blocks.splice(bi,1);
+  closeModal('obsModalContainer');renderAreas();
+}
 
 function openBlockDetail(ai,vi,bi){
   const a=state.areas[ai];const vy=a.vineyards[vi];const b=vy.blocks[bi];const col=colorFor(ai);
