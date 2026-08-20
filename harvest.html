@@ -278,7 +278,7 @@ const CHEM_UNITS={baume:'°', tartaricAcid:'g/L', ph:''};
 const AGRO_LABELS={berryWeight:'Βάρος ράγας', juiceYield:'Απόδοση χυμού'};
 const AGRO_UNITS={berryWeight:'g', juiceYield:'mg/g'};
 
-function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap){
+function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, showHarvestCol){
   actualMap=actualMap||{};
   const blocks=Object.keys(blockMap).sort();
   const allDates=new Set();
@@ -306,8 +306,35 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap){
     if(total>0)actualByBlock[b]=total;
   });
 
+  // Στήλη "Τρύγος — ημ/νία · Baumé": ένα block μπορεί να τρυγηθεί σε παραπάνω από μία φάσεις
+  // (διαφορετικές ημερομηνίες μέσα στο ίδιο actualMap), οπότε ομαδοποιούμε ανά block και δείχνουμε
+  // όλες τις φάσεις μαζί στο ίδιο κελί — η καθεμία με το Baumé που είχε καταγραφεί πιο κοντά
+  // (πριν ή έως) την ημερομηνία εκείνης της φάσης, δηλαδή "τι Baumé είχε όταν μπήκε μέσα".
+  let anyApproxBaume=false;
+  const harvestInfoByBlock={};
+  if(showHarvestCol){
+    blocks.forEach(b=>{
+      const harvestDates=Object.keys(actualMap[b]||{}).sort();
+      if(!harvestDates.length)return;
+      const baumeDates=Object.keys(blockMap[b]||{}).filter(d=>{
+        const v=blockMap[b][d].baume;
+        return v!==null&&v!==undefined;
+      }).sort();
+      harvestInfoByBlock[b]=harvestDates.map(hd=>{
+        let best=null;
+        for(const bd of baumeDates){if(bd<=hd)best=bd;else break;}
+        let approx=false;
+        if(best===null&&baumeDates.length){best=baumeDates.find(bd=>bd>hd)||null;approx=true;}
+        else if(best!==null&&best!==hd){approx=true;}
+        if(approx)anyApproxBaume=true;
+        const baume=best!==null?blockMap[b][best].baume:null;
+        return{date:hd,baume,approx};
+      });
+    });
+  }
+
   return `<div class="matrix-scroll"><table class="matrix">
-    <thead><tr><th>Block</th><th class="forecast-col">Πρόβλεψη (Kg)</th><th class="forecast-col actual-col">Πραγματική ποσότητα (Kg)</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}</tr></thead>
+    <thead><tr><th>Block</th><th class="forecast-col">Πρόβλεψη (Kg)</th><th class="forecast-col actual-col">Πραγματική ποσότητα (Kg)</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}${showHarvestCol?'<th class="forecast-col">Τρύγος (ημ/νία · Baumé)</th>':''}</tr></thead>
     <tbody>
       ${blocks.map(b=>`<tr>
         <td>${b}</td>
@@ -322,9 +349,10 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap){
             <div class="cell-detail" style="display:none;">${detailHTML||'—'}</div>
           </div></td>`;
         }).join('')}
+        ${showHarvestCol?`<td class="forecast-col">${(harvestInfoByBlock[b]||[]).length?harvestInfoByBlock[b].map(e=>`${fmtShortDate(e.date)}: ${e.baume!==null&&e.baume!==undefined?e.baume+'°'+(e.approx?' *':''):'<span class="cell-empty">—</span>'}`).join('<br>'):'<span class="cell-empty">—</span>'}</td>`:''}
       </tr>`).join('')}
     </tbody>
-  </table></div>`;
+  </table></div>${showHarvestCol&&anyApproxBaume?'<div style="font-size:11px;color:var(--ink-faint);margin-top:6px;font-family:-apple-system,sans-serif;">* το Baumé δεν καταγράφηκε ακριβώς την ημέρα του τρύγου — δείχνεται η πλησιέστερη διαθέσιμη μέτρηση.</div>':''}`;
 }
 
 function setSection(variety,mode){sectionMode[variety]=mode;render();}
@@ -356,7 +384,7 @@ function render(){
           <button class="btn-chart" onclick="openMetricChart('${variety.replace(/'/g,"\\'")}','${chemMetric}')">📈 Γράφημα ${CHEM_LABELS[chemMetric]}</button>
         </div>
       </div>
-      ${buildMatrixHTML(blockMap, chemMetric, ['baume','tartaricAcid','ph'], CHEM_LABELS, CHEM_UNITS, actualMap)}`;
+      ${buildMatrixHTML(blockMap, chemMetric, ['baume','tartaricAcid','ph'], CHEM_LABELS, CHEM_UNITS, actualMap, true)}`;
     const agroSection=`<div class="section-hdr">
         <span class="section-title">Αγρονομικές αναλύσεις</span>
         <div class="toggle-row">
