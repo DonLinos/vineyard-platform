@@ -48,6 +48,11 @@
   .thresh-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);}
   .thresh-row:last-child{border-bottom:none;}
   .thresh-row input{width:70px;}
+  .variety-tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:20px;}
+  .vtab{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:6px 14px;font-size:12px;cursor:pointer;color:var(--ink-dim);white-space:nowrap;}
+  .vtab:hover{border-color:var(--gold-dim);}
+  .vtab.on{background:var(--gold);color:#241a08;border-color:var(--gold);font-weight:600;}
+  input[type="number"].baume-input{width:100px;}
 </style>
 </head>
 <body>
@@ -125,6 +130,7 @@ let blocksData=[];      // {id, block_code, variety, vineyardCode, latestBaume, 
 let thresholdsByVariety={};
 let scheduleByBlock={};  // block_id -> schedule row (latest / open one)
 let currentPersonName='';
+let selectedVarietyTab='__all__'; // καρτέλα ποικιλίας που φιλτράρει Έτοιμα/Προγραμματισμένα/Ολοκληρωμένα
 
 function fmtDate(d){
   if(!d)return'—';
@@ -207,12 +213,24 @@ function thresholdFor(variety){
   return thresholdsByVariety[variety]!==undefined?thresholdsByVariety[variety]:DEFAULT_THRESHOLD;
 }
 
+// Καρτέλες ποικιλιών, ώστε να μη χρειάζεται να σκρολάρεις ανάμεσα σε όλες τις ποικιλίες μαζί
+function varietyTabsHTML(){
+  const varieties=[...new Set(blocksData.map(b=>b.variety))].sort((a,b)=>a.localeCompare(b,'el'));
+  if(varieties.length<=1)return'';
+  const tabs=['__all__',...varieties];
+  return`<div class="variety-tabs">${tabs.map(v=>`<button class="vtab${selectedVarietyTab===v?' on':''}" onclick="setVarietyTab('${v.replace(/'/g,"\\'")}')">${v==='__all__'?'Όλες':v}</button>`).join('')}</div>`;
+}
+function setVarietyTab(v){selectedVarietyTab=v;render();}
+
 function render(){
   const el=document.getElementById('content');
-  if(!blocksData.length){el.innerHTML='<div class="no-data">Δεν βρέθηκαν blocks.</div>';renderThresholds();return;}
+  const tabsHTML=varietyTabsHTML();
+  if(!blocksData.length){el.innerHTML=tabsHTML+'<div class="no-data">Δεν βρέθηκαν blocks.</div>';renderThresholds();return;}
+
+  const visibleBlocks=selectedVarietyTab==='__all__'?blocksData:blocksData.filter(b=>b.variety===selectedVarietyTab);
 
   const ready=[], scheduled=[], done=[];
-  blocksData.forEach(b=>{
+  visibleBlocks.forEach(b=>{
     const sched=scheduleByBlock[b.id];
     if(sched&&sched.actual_kg!==null&&sched.actual_kg!==undefined){done.push(b);}
     else if(sched){scheduled.push(b);}
@@ -222,7 +240,7 @@ function render(){
     }
   });
 
-  let html='';
+  let html=tabsHTML;
 
   html+='<h2 class="section">🍇 Έτοιμα για προγραμματισμό ('+ready.length+')</h2>';
   html+=ready.length?ready.map(b=>readyCard(b)).join(''):'<div class="no-data">Κανένα block πάνω από το όριο Baumé αυτή τη στιγμή.</div>';
@@ -269,6 +287,7 @@ function readyCard(b){
     <div class="row-actions" id="qh-form-${b.id}" style="display:none;">
       <input type="date" id="qh-date-${b.id}" value="${new Date().toISOString().slice(0,10)}">
       <input type="number" id="qh-kg-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1">
+      <input type="number" class="baume-input" id="qh-baume-${b.id}" placeholder="Baumé °" min="0" step="0.1">
       <button class="small" onclick="quickHarvestBlock('${b.id}')">Καταχώρηση</button>
     </div>
   </div>`;
@@ -282,6 +301,7 @@ function toggleQuickHarvest(blockId){
 async function quickHarvestBlock(blockId){
   const date=document.getElementById('qh-date-'+blockId).value;
   const kg=document.getElementById('qh-kg-'+blockId).value;
+  const baume=document.getElementById('qh-baume-'+blockId).value;
   if(!date){alert('Διάλεξε ημερομηνία.');return;}
   if(!kg){alert('Γράψε τα πραγματικά kg.');return;}
   const b=blocksData.find(x=>x.id===blockId);
@@ -290,6 +310,7 @@ async function quickHarvestBlock(blockId){
     scheduled_date:date,
     estimated_kg:b?b.latestYieldEst:null,
     actual_kg:parseFloat(kg),
+    actual_baume:baume!==''?parseFloat(baume):null,
     created_by:currentPersonName
   });
   if(error){alert('Σφάλμα: '+error.message);return;}
@@ -308,23 +329,51 @@ function scheduledCard(b){
     </div>
     <div class="row-actions">
       <input type="number" id="actual-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1">
+      <input type="number" class="baume-input" id="actual-baume-${b.id}" placeholder="Baumé °" min="0" step="0.1">
       <button class="small" onclick="completeBlock('${b.id}','${s.id}')">✅ Ολοκλήρωση</button>
       <button class="small ghost" onclick="unscheduleBlock('${b.id}','${s.id}')">Ακύρωση</button>
     </div>
   </div>`;
 }
 
+// Ακόμα κι όταν ο τρύγος έχει ολοκληρωθεί, το Baumé (ή τα κιλά) μπορεί να χρειαστεί να μπει/διορθωθεί
+// τις επόμενες μέρες (π.χ. όταν έρθει το αποτέλεσμα από το εργαστήριο) — γι' αυτό υπάρχει πάντα Edit.
 function doneCard(b){
   const s=scheduleByBlock[b.id];
   return `<div class="card">
     <div class="block-row">
       <div>
         <div class="block-name">${b.blockCode}${b.vineyardCode?' · '+b.vineyardCode:''}</div>
-        <div class="block-meta">${b.variety} · τρυγήθηκε ${fmtDate(s.scheduled_date)} · ${s.actual_kg} kg</div>
+        <div class="block-meta">${b.variety} · τρυγήθηκε ${fmtDate(s.scheduled_date)} · ${s.actual_kg} kg${s.actual_baume!==null&&s.actual_baume!==undefined?' · Baumé '+s.actual_baume+'°':''}</div>
       </div>
       <span class="badge done">Ολοκληρώθηκε</span>
     </div>
+    <div class="row-actions">
+      <button class="small ghost" onclick="toggleDoneEdit('${b.id}')" id="de-toggle-${b.id}">✏️ Επεξεργασία</button>
+    </div>
+    <div class="row-actions" id="de-form-${b.id}" style="display:none;">
+      <input type="number" id="de-kg-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1" value="${s.actual_kg!==null&&s.actual_kg!==undefined?s.actual_kg:''}">
+      <input type="number" class="baume-input" id="de-baume-${b.id}" placeholder="Baumé °" min="0" step="0.1" value="${s.actual_baume!==null&&s.actual_baume!==undefined?s.actual_baume:''}">
+      <button class="small" onclick="saveDoneEdit('${b.id}','${s.id}')">Αποθήκευση</button>
+    </div>
   </div>`;
+}
+
+function toggleDoneEdit(blockId){
+  const form=document.getElementById('de-form-'+blockId);
+  form.style.display=(form.style.display==='none')?'flex':'none';
+}
+
+async function saveDoneEdit(blockId,scheduleId){
+  const kg=document.getElementById('de-kg-'+blockId).value;
+  const baume=document.getElementById('de-baume-'+blockId).value;
+  if(!kg){alert('Γράψε τα πραγματικά kg.');return;}
+  const{error}=await supa.from('harvest_schedule').update({
+    actual_kg:parseFloat(kg),
+    actual_baume:baume!==''?parseFloat(baume):null
+  }).eq('id',scheduleId);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  await loadAll();render();
 }
 
 async function scheduleBlock(blockId){
@@ -343,8 +392,13 @@ async function scheduleBlock(blockId){
 
 async function completeBlock(blockId,scheduleId){
   const val=document.getElementById('actual-'+blockId).value;
+  const baumeVal=document.getElementById('actual-baume-'+blockId).value;
   if(!val){alert('Γράψε τα πραγματικά kg.');return;}
-  const{error}=await supa.from('harvest_schedule').update({actual_kg:parseFloat(val),updated_at:new Date().toISOString()}).eq('id',scheduleId);
+  const{error}=await supa.from('harvest_schedule').update({
+    actual_kg:parseFloat(val),
+    actual_baume:baumeVal!==''?parseFloat(baumeVal):null,
+    updated_at:new Date().toISOString()
+  }).eq('id',scheduleId);
   if(error){alert('Σφάλμα: '+error.message);return;}
   await loadAll();render();
 }
