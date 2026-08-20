@@ -300,19 +300,22 @@ const AGRO_LABELS={berryWeight:'Βάρος ράγας', juiceYield:'Απόδοσ
 const AGRO_UNITS={berryWeight:'g', juiceYield:'mg/g'};
 
 function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, showHarvestCol, actualBaumeMap){
+  blockMap=blockMap||{};
   actualMap=actualMap||{};
   actualBaumeMap=actualBaumeMap||{};
-  const blocks=Object.keys(blockMap).sort();
+  // Ένωση: ένα block μπορεί να υπάρχει μόνο στο actualMap (τρυγήθηκε χωρίς ποτέ να έχει δειγματοληψία)
+  // ή μόνο στο blockMap (έχει δειγματοληψίες αλλά δεν τρυγήθηκε ακόμα) — πρέπει να φαίνεται σε κάθε περίπτωση.
+  const blocks=[...new Set([...Object.keys(blockMap),...Object.keys(actualMap)])].sort();
   const allDates=new Set();
-  blocks.forEach(b=>Object.keys(blockMap[b]).forEach(d=>allDates.add(d)));
+  blocks.forEach(b=>Object.keys(blockMap[b]||{}).forEach(d=>allDates.add(d)));
   const dates=[...allDates].sort();
 
-  if(!dates.length)return'<div class="no-data">Δεν υπάρχουν δεδομένα.</div>';
+  if(!blocks.length)return'<div class="no-data">Δεν υπάρχουν δεδομένα.</div>';
 
   // Πρόβλεψη απόδοσης: παίρνουμε την πιο πρόσφατη καταχωρημένη τιμή yieldEst ανά block
   const forecastByBlock={};
   blocks.forEach(b=>{
-    const recDates=Object.keys(blockMap[b]).sort();
+    const recDates=Object.keys(blockMap[b]||{}).sort();
     for(let i=recDates.length-1;i>=0;i--){
       const v=blockMap[b][recDates[i]].yieldEst;
       if(v!==null&&v!==undefined){forecastByBlock[b]=v;break;}
@@ -372,7 +375,7 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, 
         <td class="forecast-col">${forecastByBlock[b]!==undefined?forecastByBlock[b]:'<span class="cell-empty">—</span>'}</td>
         <td class="forecast-col actual-col">${actualByBlock[b]!==undefined?actualByBlock[b]:'<span class="cell-empty">—</span>'}</td>
         ${dates.map(d=>{
-          const rec=blockMap[b][d];
+          const rec=(blockMap[b]||{})[d];
           if(!rec||rec[metric]===null||rec[metric]===undefined)return`<td><span class="cell-empty">—</span></td>`;
           const otherFields=allFields.filter(f=>f!==metric);
           const detailHTML=otherFields.map(f=>rec[f]!==null&&rec[f]!==undefined?`${labels[f]}: ${rec[f]}${units[f]}`:null).filter(Boolean).join('<br>');
@@ -405,14 +408,17 @@ function renderYearSelector(){
 
 function render(){
   const yearHTML=renderYearSelector();
-  const varieties=Object.keys(varietyData).sort();
+  // Ένωση ποικιλιών από δειγματοληψίες ΚΑΙ από τρύγο — ένα block μπορεί να τρυγήθηκε (με kg/Baumé
+  // καταχωρημένα απευθείας στο ημερολόγιο τρύγου) χωρίς να έχει ποτέ δειγματοληψία στο admin.html,
+  // οπότε δεν πρέπει να λείπει ολόκληρη η ποικιλία από το report μόνο επειδή δεν έγινε sampling.
+  const varieties=[...new Set([...Object.keys(varietyData),...Object.keys(actualData)])].sort((a,b)=>a.localeCompare(b,'el'));
   if(!varieties.length){
-    document.getElementById('content').innerHTML=yearHTML+'<div class="no-data">Δεν υπάρχουν δεδομένα δειγματοληψιών για αυτή τη χρονιά.</div>';
+    document.getElementById('content').innerHTML=yearHTML+'<div class="no-data">Δεν υπάρχουν δεδομένα για αυτή τη χρονιά.</div>';
     return;
   }
 
   const html=varieties.map(variety=>{
-    const blockMap=varietyData[variety];
+    const blockMap=varietyData[variety]||{};
     const actualMap=actualData[variety]||{};
     const actualBaumeMap=actualBaumeData[variety]||{};
     const mode=sectionMode[variety]||'chem';
@@ -450,7 +456,7 @@ loadData();
 const CHART_COLORS=['#c99a3e','#4a6fa5','#7a9d54','#a5524a','#8e6bab','#4a9d94','#c47a3e','#5a5a8e'];
 
 function openMetricChart(variety,metric){
-  const blockMap=varietyData[variety];
+  const blockMap=varietyData[variety]||{};
   const label=CHEM_LABELS[metric]||metric;
   const unit=CHEM_UNITS[metric]||'';
   document.getElementById('chartModalContainer').innerHTML=`
