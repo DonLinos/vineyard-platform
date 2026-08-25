@@ -211,6 +211,17 @@ if(!supabaseClient){
   console.warn('Supabase δεν έχει συνδεθεί ακόμα — λείπουν URL/key. Η εφαρμογή συνεχίζει να δουλεύει με localStorage προς το παρόν.');
 }
 
+// Μετατρέπει σε αριθμό δεκαδικές τιμές που ο χρήστης έγραψε με κόμμα (π.χ. "11,8") αντί για τελεία.
+// Χωρίς αυτό, το parseFloat("11,8") σταματάει στο κόμμα και επιστρέφει μόνο 11 — χάνοντας το δεκαδικό
+// χωρίς κανένα μήνυμα σφάλματος (έτσι "στρογγυλοποιούνταν" σιωπηλά καταχωρήσεις Baumé/pH/κλπ.).
+function toNum(v){
+  if(v===null||v===undefined)return null;
+  const s=String(v).trim().replace(',', '.');
+  if(s==='')return null;
+  const n=parseFloat(s);
+  return isNaN(n)?null:n;
+}
+
 // ─── WINERY ID (από το URL, μετά το login) + AUTH GUARD ───
 const urlParams=new URLSearchParams(window.location.search);
 const WINERY_ID=urlParams.get('winery_id');
@@ -302,9 +313,9 @@ async function syncToSupabase(){
         const{data:newArea,error:aErr}=await supabaseClient.from('areas').insert({
           winery_id:wineryId,name:area.name,gps:area.gps||null,
           alt_min:area.altMin?parseInt(area.altMin):null,alt_max:area.altMax?parseInt(area.altMax):null,
-          rainfall:area.rainfall?parseInt(area.rainfall):null,avg_temp:area.avgTemp?parseFloat(area.avgTemp):null,
-          clay:area.clay?parseFloat(area.clay):null,sand:area.sand?parseFloat(area.sand):null,silt:area.silt?parseFloat(area.silt):null,
-          soil:area.soil||null,soil_ph:area.soilPh?parseFloat(area.soilPh):null,soil_note:area.soilNote||null
+          rainfall:area.rainfall?parseInt(area.rainfall):null,avg_temp:toNum(area.avgTemp),
+          clay:toNum(area.clay),sand:toNum(area.sand),silt:toNum(area.silt),
+          soil:area.soil||null,soil_ph:toNum(area.soilPh),soil_note:area.soilNote||null
         }).select('id').single();
         if(aErr)throw aErr;
         areaId=newArea.id;
@@ -324,7 +335,7 @@ async function syncToSupabase(){
           if(block.dbId)continue; // ήδη ανέβηκε
           const{data:newBlock,error:bErr}=await supabaseClient.from('blocks').insert({
             area_id:areaId,vineyard_id:vineyardId,block_code:block.id,variety:block.variety||null,
-            year_planted:block.yearPlanted||null,hectares:block.ha?parseFloat(block.ha):null,
+            year_planted:block.yearPlanted||null,hectares:toNum(block.ha),
             orientation:block.orientation||null,spacing:block.spacing||null
           }).select('id').single();
           if(bErr)throw bErr;
@@ -388,9 +399,9 @@ async function ensureBlockSynced(ai,vi,bi){
     const{data:newArea,error:aErr}=await supabaseClient.from('areas').insert({
       winery_id:wineryId,name:area.name,gps:area.gps||null,
       alt_min:area.altMin?parseInt(area.altMin):null,alt_max:area.altMax?parseInt(area.altMax):null,
-      rainfall:area.rainfall?parseInt(area.rainfall):null,avg_temp:area.avgTemp?parseFloat(area.avgTemp):null,
-      clay:area.clay?parseFloat(area.clay):null,sand:area.sand?parseFloat(area.sand):null,silt:area.silt?parseFloat(area.silt):null,
-      soil:area.soil||null,soil_ph:area.soilPh?parseFloat(area.soilPh):null,soil_note:area.soilNote||null
+      rainfall:area.rainfall?parseInt(area.rainfall):null,avg_temp:toNum(area.avgTemp),
+      clay:toNum(area.clay),sand:toNum(area.sand),silt:toNum(area.silt),
+      soil:area.soil||null,soil_ph:toNum(area.soilPh),soil_note:area.soilNote||null
     }).select('id').single();
     if(aErr)throw aErr;
     area.dbId=newArea.id;
@@ -405,7 +416,7 @@ async function ensureBlockSynced(ai,vi,bi){
   if(!block.dbId){
     const{data:newBlock,error:bErr}=await supabaseClient.from('blocks').insert({
       area_id:area.dbId,vineyard_id:vy.dbId,block_code:block.id,variety:block.variety||null,
-      year_planted:block.yearPlanted||null,hectares:block.ha?parseFloat(block.ha):null,
+      year_planted:block.yearPlanted||null,hectares:toNum(block.ha),
       orientation:block.orientation||null,spacing:block.spacing||null
     }).select('id').single();
     if(bErr)throw bErr;
@@ -429,13 +440,13 @@ async function pushObservationToSupabase(type,obs,ai,vi,bi){
       row={block_id:blockId,visit_id:visitId,presence:obs.presence||null,species:obs.species||null,population:obs.population?parseInt(obs.population):null,life_stages:obs.stages||[],note:obs.note||null,observed_date:obs.date||null};
     }else if(type==='diseases'){
       table='disease_observations';
-      row={block_id:blockId,visit_id:visitId,disease:obs.disease||null,severity:obs.severity||null,affected_pct:obs.affectedPct?parseFloat(obs.affectedPct):null,note:obs.note||null,observed_date:obs.date||null};
+      row={block_id:blockId,visit_id:visitId,disease:obs.disease||null,severity:obs.severity||null,affected_pct:toNum(obs.affectedPct),note:obs.note||null,observed_date:obs.date||null};
     }else if(type==='management'){
       table='management_observations';
       row={block_id:blockId,visit_id:visitId,practices:obs.practices||[],note:obs.note||null,observed_date:obs.date||null,status:'pending'};
     }else if(type==='estimations'){
       table='estimation_observations';
-      row={block_id:blockId,visit_id:visitId,baume:obs.baume?parseFloat(obs.baume):null,tartaric_acid:obs.tartaricAcid?parseFloat(obs.tartaricAcid):null,ph:obs.ph?parseFloat(obs.ph):null,yield_est_kg_ha:obs.yieldEst?parseFloat(obs.yieldEst):null,harvest_window:obs.harvestWindow||null,berry_weight_g:obs.berryWeight?parseFloat(obs.berryWeight):null,juice_yield:obs.juiceYield?parseFloat(obs.juiceYield):null,quality_outlook:obs.quality||null,note:obs.note||null,observed_date:obs.date||null};
+      row={block_id:blockId,visit_id:visitId,baume:toNum(obs.baume),tartaric_acid:toNum(obs.tartaricAcid),ph:toNum(obs.ph),yield_est_kg_ha:toNum(obs.yieldEst),harvest_window:obs.harvestWindow||null,berry_weight_g:toNum(obs.berryWeight),juice_yield:toNum(obs.juiceYield),quality_outlook:obs.quality||null,note:obs.note||null,observed_date:obs.date||null};
     }else return;
     const{data,error}=await supabaseClient.from(table).insert(row).select('id').single();
     if(error)throw error;
@@ -819,9 +830,9 @@ async function saveArea(){
       const{error}=await supabaseClient.from('areas').update({
         name:d.name,gps:d.gps||null,
         alt_min:d.altMin?parseInt(d.altMin):null,alt_max:d.altMax?parseInt(d.altMax):null,
-        rainfall:d.rainfall?parseInt(d.rainfall):null,avg_temp:d.avgTemp?parseFloat(d.avgTemp):null,
-        clay:d.clay?parseFloat(d.clay):null,sand:d.sand?parseFloat(d.sand):null,silt:d.silt?parseFloat(d.silt):null,
-        soil:d.soil||null,soil_ph:d.soilPh?parseFloat(d.soilPh):null,soil_note:d.soilNote||null
+        rainfall:d.rainfall?parseInt(d.rainfall):null,avg_temp:toNum(d.avgTemp),
+        clay:toNum(d.clay),sand:toNum(d.sand),silt:toNum(d.silt),
+        soil:d.soil||null,soil_ph:toNum(d.soilPh),soil_note:d.soilNote||null
       }).eq('id',d.dbId);
       if(error){
         console.error('Area update στο Supabase απέτυχε:',error);
@@ -937,7 +948,7 @@ async function saveBlock(){
         block_code:d.id,
         variety:d.variety||null,
         year_planted:d.yearPlanted||null,
-        hectares:d.ha?parseFloat(d.ha):null,
+        hectares:toNum(d.ha),
         orientation:d.orientation||null,
         spacing:d.spacing||null
       }).eq('id',d.dbId);
