@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Προγραμματισμός Τρύγου</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <style>
   :root{
     --ink:#f2ede1; --ink-dim:#b9c2b3; --ink-faint:#7c8a78; --bg:#1d2620; --card:#26312a;
@@ -67,59 +68,8 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="shared.js"></script>
 <script>
-// access-check.js
-// Κοινό helper για σελίδες που δέχονται είτε πραγματικό Supabase login (ο σύμβουλος)
-// είτε προσωπικό access code (εργαζόμενοι οινοποιείου, χωρίς email/password).
-// Καλείται ως: const access = await requireAccess(supa, WINERY_ID);
-// Επιστρέφει null (και κάνει redirect στο access.html) αν δεν υπάρχει έγκυρη πρόσβαση.
-// Αλλιώς επιστρέφει { method:'auth'|'code', personName, wineryId }.
-
-async function requireAccess(supa, wineryId) {
-  // 1) Έλεγχος πραγματικού Supabase login (σύμβουλος)
-  try {
-    const { data: { session } } = await supa.auth.getSession();
-    if (session && session.user) {
-      if (wineryId) {
-        const { data: membership } = await supa
-          .from('memberships')
-          .select('winery_id')
-          .eq('user_id', session.user.id)
-          .eq('winery_id', wineryId)
-          .maybeSingle();
-        if (membership) {
-          return { method: 'auth', personName: session.user.email, wineryId };
-        }
-      } else {
-        return { method: 'auth', personName: session.user.email, wineryId: null };
-      }
-    }
-  } catch (e) {
-    console.warn('requireAccess: auth session check failed', e);
-  }
-
-  // 2) Έλεγχος access code session (εργαζόμενος)
-  try {
-    const raw = sessionStorage.getItem('accessSession');
-    if (raw) {
-      const acc = JSON.parse(raw);
-      if (acc && acc.wineryId && String(acc.wineryId) === String(wineryId)) {
-        return { method: 'code', personName: acc.personName, wineryId: acc.wineryId };
-      }
-    }
-  } catch (e) {
-    console.warn('requireAccess: access code session check failed', e);
-  }
-
-  // 3) Καμία έγκυρη πρόσβαση — redirect στο access.html
-  const currentPage = window.location.pathname.split('/').pop();
-  window.location.href = 'access.html?return=' + encodeURIComponent(currentPage);
-  return null;
-}
-</script>
-<script>
-const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
-const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
 const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const urlParams=new URLSearchParams(window.location.search);
 const WINERY_ID=urlParams.get('winery_id');
@@ -130,6 +80,7 @@ let blocksData=[];      // {id, block_code, variety, vineyardCode, latestBaume, 
 let thresholdsByVariety={};
 let scheduleByBlock={};  // block_id -> schedule row (latest / open one)
 let currentPersonName='';
+let isAdmin=false; // true μόνο για πραγματικό Supabase login (σύμβουλος) — όχι για access code
 let selectedVarietyTab='__all__'; // καρτέλα ποικιλίας που φιλτράρει Έτοιμα/Προγραμματισμένα/Ολοκληρωμένα
 
 function fmtDate(d){
@@ -143,6 +94,7 @@ async function requireAuthAndLoad(){
   const access=await requireAccess(supa,WINERY_ID);
   if(!access)return;
   currentPersonName=access.personName;
+  isAdmin=access.method==='auth';
 
   const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
   document.getElementById('topbarSub').textContent=(winery?winery.name:'')+' — Προγραμματισμός & κατάσταση τρύγου ανά block';
@@ -338,6 +290,8 @@ function scheduledCard(b){
 
 // Ακόμα κι όταν ο τρύγος έχει ολοκληρωθεί, το Baumé (ή τα κιλά) μπορεί να χρειαστεί να μπει/διορθωθεί
 // τις επόμενες μέρες (π.χ. όταν έρθει το αποτέλεσμα από το εργαστήριο) — γι' αυτό υπάρχει πάντα Edit.
+// Η ίδια η ημερομηνία τρύγου μπορεί να έχει περαστεί λάθος· τη διόρθωση αυτή την επιτρέπουμε
+// μόνο στον admin (πραγματικό login), όχι σε πρόσβαση με κωδικό, γιατί αλλάζει ιστορικό δεδομένο.
 function doneCard(b){
   const s=scheduleByBlock[b.id];
   return `<div class="card">
@@ -352,6 +306,7 @@ function doneCard(b){
       <button class="small ghost" onclick="toggleDoneEdit('${b.id}')" id="de-toggle-${b.id}">✏️ Επεξεργασία</button>
     </div>
     <div class="row-actions" id="de-form-${b.id}" style="display:none;">
+      ${isAdmin?`<input type="date" id="de-date-${b.id}" value="${s.scheduled_date||''}" title="Ημερομηνία τρύγου">`:''}
       <input type="number" id="de-kg-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1" value="${s.actual_kg!==null&&s.actual_kg!==undefined?s.actual_kg:''}">
       <input type="number" class="baume-input" id="de-baume-${b.id}" placeholder="Baumé °" min="0" step="0.1" value="${s.actual_baume!==null&&s.actual_baume!==undefined?s.actual_baume:''}">
       <button class="small" onclick="saveDoneEdit('${b.id}','${s.id}')">Αποθήκευση</button>
@@ -367,11 +322,17 @@ function toggleDoneEdit(blockId){
 async function saveDoneEdit(blockId,scheduleId){
   const kg=document.getElementById('de-kg-'+blockId).value;
   const baume=document.getElementById('de-baume-'+blockId).value;
+  const dateInp=document.getElementById('de-date-'+blockId); // υπάρχει μόνο αν isAdmin
   if(!kg){alert('Γράψε τα πραγματικά kg.');return;}
-  const{error}=await supa.from('harvest_schedule').update({
+  const updates={
     actual_kg:parseFloat(kg),
     actual_baume:baume!==''?parseFloat(baume):null
-  }).eq('id',scheduleId);
+  };
+  if(dateInp){
+    if(!dateInp.value){alert('Διάλεξε ημερομηνία τρύγου.');return;}
+    updates.scheduled_date=dateInp.value;
+  }
+  const{error}=await supa.from('harvest_schedule').update(updates).eq('id',scheduleId);
   if(error){alert('Σφάλμα: '+error.message);return;}
   await loadAll();render();
 }

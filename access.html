@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Είσοδος — Vineyard Reports</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <style>
   :root {
     --ink: #f2ede1; --ink-dim: #b9c2b3; --ink-faint: #7c8a78;
@@ -52,10 +53,9 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="shared.js"></script>
 <script>
-  const SUPABASE_URL = "https://xxyrareqzgvsaolhftbh.supabase.co";
-  const SUPABASE_KEY = "sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE";
-  const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   const urlParams = new URLSearchParams(window.location.search);
   const RETURN_TO = urlParams.get('return') || 'reports.html';

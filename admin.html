@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
 <title>Vineyard Admin · Marathasa</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f4f0;color:#1a1a1a;font-size:14px;}
@@ -151,6 +152,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <button onclick="importData()">Import</button>
   <button onclick="syncToSupabase()" id="syncBtn">☁ Sync to Cloud</button>
   <button class="primary" onclick="generateReport()">Report ↗</button>
+  <button onclick="openSettings()" title="Ρυθμίσεις">⚙️</button>
   <button onclick="logout()">Αποσύνδεση</button>
 </div>
 <div class="app">
@@ -159,7 +161,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="sec-lbl">Report header</div>
   <div class="card">
     <div class="g3" style="margin-bottom:10px;">
-      <div class="field"><span class="flbl">Winery</span><input class="finp" id="hWinery" value="Marathasa Winery"></div>
+      <div class="field"><span class="flbl">Winery</span><input class="finp" id="hWinery" placeholder="π.χ. Marathasa Winery"></div>
       <div class="field"><span class="flbl">Visit date</span><input class="finp" id="hDate" type="date"></div>
       <div class="field"><span class="flbl">Inspector</span><input class="finp" id="hInspector" placeholder="Full name"></div>
     </div>
@@ -181,6 +183,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
     <div style="font-size:12px;color:#2d6a4f;">✓ Ο σαρωτής BBCH λειτουργεί μέσω ασφαλούς cloud function — δεν χρειάζεται πλέον API key εδώ.</div>
   </div>
 
+  <div class="sec-lbl">Κωδικοί πρόσβασης προσωπικού</div>
+  <div class="card">
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">Δημιούργησε έναν κωδικό για κάθε άτομο που χρειάζεται πρόσβαση χωρίς λογαριασμό Supabase (π.χ. εργάτης αμπελιού, επόπτης). Ο κωδικός μπαίνει στη σελίδα access.html.</div>
+    <div class="g3" style="margin-bottom:10px;align-items:end;">
+      <div class="field" style="grid-column:span 2;"><span class="flbl">Όνομα ατόμου</span><input class="finp" id="acPersonName" placeholder="π.χ. Γιώργος Παύλου"></div>
+      <button class="btn" onclick="generateAccessCode()">+ Νέος κωδικός</button>
+    </div>
+    <div id="accessCodesList" style="font-size:13px;"></div>
+  </div>
 
   <div class="sec-lbl">Areas</div>
   <div class="search-bar">
@@ -195,14 +206,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
 <div id="blockModalContainer"></div>
 <div id="obsModalContainer"></div>
 <div id="scannerContainer"></div>
+<div id="settingsModalContainer"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="shared.js"></script>
 <script>
-// ─── ΣΥΝΔΕΣΗ ΜΕ ΤΟ SUPABASE ───
-// Αντικατέστησε τα δύο παρακάτω με τα δικά σου (Settings → API Keys):
-const SUPABASE_URL = 'https://xxyrareqzgvsaolhftbh.supabase.co';
-const SUPABASE_KEY = 'sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
-
+// ─── ΣΥΝΔΕΣΗ ΜΕ ΤΟ SUPABASE (URL/KEY ζουν στο shared.js) ───
 const supabaseClient = (SUPABASE_URL.startsWith('http'))
   ? supabase.createClient(SUPABASE_URL, SUPABASE_KEY)
   : null;
@@ -254,7 +263,12 @@ const STAGES=['Egg','L1','L2','L3','L4','Adult'];
 const DISEASES=['Powdery mildew','Downy mildew','Botrytis'];
 const SEVERITY=['Trace','Low','Moderate','High','Severe'];
 const MGMT=['Spraying','Pruning','Shoot positioning','Hedging','Leaf removal','Green harvest','Irrigation','Soil tillage','Fertilisation','Suckering','Tie-down','Other'];
-const VARIETY_LIST=['XNS — Xynisteri','YND — Yiannoudi','SRH — Syrah','SVB — Sauvignon Blanc','ZFD — Zinfandel','MTR — Mataro','GRN — Grenache','PRM — Promara','MSF — Moschofilero','CSV — Cabernet Sauvignon','CFR — Cabernet Franc','LFK — Lefkada','SRH/YND — Syrah/Yiannoudi','YND/XNS — Yiannoudi/Xynisteri','Other'];
+// Βασική λίστα ποικιλιών (πάντα διαθέσιμη, ενσωματωμένη στον κώδικα). Ο admin μπορεί να
+// προσθέσει κι άλλες μέσα από τις Ρυθμίσεις (⚙️) — αυτές αποθηκεύονται στον πίνακα
+// custom_varieties και προστίθενται εδώ πριν το 'Other' κάθε φορά που φορτώνει η σελίδα
+// (βλ. loadCustomVarieties()). Το 'VAS — Vasilissa' προστέθηκε απευθείας εδώ κατόπιν αιτήματος.
+const BASE_VARIETY_LIST=['XNS — Xynisteri','YND — Yiannoudi','SRH — Syrah','SVB — Sauvignon Blanc','ZFD — Zinfandel','MTR — Mataro','GRN — Grenache','PRM — Promara','MSF — Moschofilero','CSV — Cabernet Sauvignon','CFR — Cabernet Franc','LFK — Lefkada','VAS — Vasilissa','SRH/YND — Syrah/Yiannoudi','YND/XNS — Yiannoudi/Xynisteri','Other'];
+let VARIETY_LIST=[...BASE_VARIETY_LIST];
 const QUALITY=['Excellent','Good','Fair','Poor'];
 
 let state={areas:[]};
@@ -297,6 +311,121 @@ function vineyardMatchesSearch(a,v){
 
 function saveApiKey(){} // δεν χρειάζεται πια — το κλειδί ζει κρυφό στο Supabase
 function loadApiKey(){return '';}
+
+// ─── ΚΩΔΙΚΟΙ ΠΡΟΣΒΑΣΗΣ ΠΡΟΣΩΠΙΚΟΥ (πίνακας access_codes: winery_id, person_name, code, active) ───
+// ΣΗΜΕΙΩΣΗ: υποθέτουμε ότι ο πίνακας έχει πρωτεύον κλειδί με όνομα "id" (η προεπιλογή του
+// Supabase). Αν το toggle ενεργό/ανενεργό παρακάτω αποτυγχάνει, τρέξε στο SQL editor του
+// Supabase: select * from access_codes limit 1; και πες μου το ακριβές όνομα της στήλης-κλειδιού.
+function makeAccessCode(){
+  // Αποφεύγουμε σύμβολα που μπερδεύονται εύκολα όταν διαβάζονται προφορικά/χειρόγραφα (0/O, 1/I/L).
+  const chars='ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  let code='';
+  for(let i=0;i<6;i++)code+=chars[Math.floor(Math.random()*chars.length)];
+  return code;
+}
+
+async function loadAccessCodes(){
+  const box=document.getElementById('accessCodesList');
+  if(!box)return;
+  if(!supabaseClient||!WINERY_ID){box.innerHTML='<div style="color:#888;">Χρειάζεται σύνδεση με το Supabase.</div>';return;}
+  const{data,error}=await supabaseClient.from('access_codes').select('*').eq('winery_id',WINERY_ID).order('person_name');
+  if(error){console.warn('loadAccessCodes failed',error);box.innerHTML='<div style="color:#c0392b;">Αποτυχία φόρτωσης κωδικών ('+error.message+').</div>';return;}
+  if(!data||!data.length){box.innerHTML='<div style="color:#888;">Δεν υπάρχουν ακόμα κωδικοί για αυτό το οινοποιείο.</div>';return;}
+  box.innerHTML=data.map(r=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;">
+      <div style="flex:1;">${r.person_name}${r.active?'':' <span style="color:#c0392b;">(ανενεργός)</span>'}</div>
+      <div style="font-family:monospace;font-size:15px;font-weight:700;letter-spacing:.06em;">${r.code}</div>
+      <button class="btn btn-sm" onclick="toggleAccessCode('${r.id}',${!r.active})">${r.active?'Απενεργοποίηση':'Ενεργοποίηση'}</button>
+    </div>`).join('');
+}
+
+async function generateAccessCode(){
+  const nameInp=document.getElementById('acPersonName');
+  const name=(nameInp?.value||'').trim();
+  if(!name){alert('Γράψε πρώτα το όνομα του ατόμου.');return;}
+  if(!supabaseClient||!WINERY_ID){alert('Δεν υπάρχει σύνδεση με το Supabase.');return;}
+  const code=makeAccessCode();
+  const{error}=await supabaseClient.from('access_codes').insert({winery_id:WINERY_ID,person_name:name,code,active:true});
+  if(error){alert('Αποτυχία δημιουργίας κωδικού: '+error.message);return;}
+  nameInp.value='';
+  loadAccessCodes();
+}
+
+async function toggleAccessCode(id,active){
+  const{error}=await supabaseClient.from('access_codes').update({active}).eq('id',id);
+  if(error){alert('Αποτυχία ενημέρωσης: '+error.message);return;}
+  loadAccessCodes();
+}
+
+// ─── ΡΥΘΜΙΣΕΙΣ (⚙️) — μόνο για τον admin. Προς το παρόν: προσθήκη νέων ποικιλιών στη λίστα
+// επιλογής block, αποθηκευμένες στον πίνακα custom_varieties (ανά winery) ώστε να φαίνονται
+// σε κάθε μηχάνημα/browser, όχι μόνο σε αυτό. ΣΗΜΕΙΩΣΗ: ο πίνακας custom_varieties πρέπει να
+// δημιουργηθεί μία φορά στο Supabase (βλ. settings-setup.sql) — μέχρι τότε το "+ Προσθήκη"
+// θα δείξει σφάλμα, αλλά η υπόλοιπη εφαρμογή συνεχίζει κανονικά.
+let customVarieties=[]; // [{id, code, name}]
+
+async function loadCustomVarieties(){
+  if(!supabaseClient||!WINERY_ID)return;
+  const{data,error}=await supabaseClient.from('custom_varieties').select('*').eq('winery_id',WINERY_ID).order('name');
+  if(error){
+    console.warn('loadCustomVarieties: πίνακας custom_varieties μη διαθέσιμος ακόμα —',error.message);
+    customVarieties=[];
+  }else{
+    customVarieties=data||[];
+  }
+  rebuildVarietyList();
+}
+
+function rebuildVarietyList(){
+  const extra=customVarieties.map(c=>c.code?`${c.code} — ${c.name}`:c.name);
+  const withoutOther=BASE_VARIETY_LIST.filter(v=>v!=='Other');
+  VARIETY_LIST=[...withoutOther,...extra.filter(v=>!withoutOther.includes(v)),'Other'];
+}
+
+function openSettings(){showModal('settingsModalContainer',settingsModalHTML());}
+
+function settingsModalHTML(){
+  return`<div class="modal-bg" onclick="if(event.target===this)closeModal('settingsModalContainer')"><div class="modal">
+    <h2 style="margin-top:0;">⚙️ Ρυθμίσεις</h2>
+    <div class="sec-lbl" style="margin-top:0;">Ποικιλίες</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">Επιπλέον ποικιλίες πέρα από τη βασική λίστα — εμφανίζονται κι αυτές στην επιλογή ποικιλίας όταν προσθέτεις/επεξεργάζεσαι block.</div>
+    <div id="customVarietyList" style="margin-bottom:12px;">${customVarietyListHTML()}</div>
+    <div class="g3" style="align-items:end;">
+      <div class="field"><span class="flbl">Κωδικός</span><input class="finp" id="cvCode" placeholder="π.χ. VAS" maxlength="6" style="text-transform:uppercase;"></div>
+      <div class="field" style="grid-column:span 2;"><span class="flbl">Όνομα ποικιλίας</span><input class="finp" id="cvName" placeholder="π.χ. Vasilissa"></div>
+    </div>
+    <button class="btn" style="margin-top:10px;" onclick="addCustomVariety()">+ Προσθήκη ποικιλίας</button>
+    <div style="margin-top:16px;text-align:right;"><button class="btn" onclick="closeModal('settingsModalContainer')">Κλείσιμο</button></div>
+  </div></div>`;
+}
+
+function customVarietyListHTML(){
+  if(!customVarieties.length)return'<div style="font-size:12px;color:#888;">Δεν έχεις προσθέσει ακόμα επιπλέον ποικιλίες.</div>';
+  return customVarieties.map(c=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid #eee;font-size:13px;">
+      <div style="flex:1;">${c.code?c.code+' — ':''}${c.name}</div>
+      <button class="btn btn-sm" onclick="deleteCustomVariety('${c.id}')">Διαγραφή</button>
+    </div>`).join('');
+}
+
+async function addCustomVariety(){
+  const code=(document.getElementById('cvCode')?.value||'').trim().toUpperCase();
+  const name=(document.getElementById('cvName')?.value||'').trim();
+  if(!name){alert('Γράψε το όνομα της ποικιλίας.');return;}
+  if(!supabaseClient||!WINERY_ID){alert('Δεν υπάρχει σύνδεση με το Supabase.');return;}
+  const{error}=await supabaseClient.from('custom_varieties').insert({winery_id:WINERY_ID,code:code||null,name});
+  if(error){alert('Αποτυχία προσθήκης ('+error.message+'). Αν είναι η πρώτη φορά, μάλλον χρειάζεται να δημιουργηθεί πρώτα ο πίνακας custom_varieties στο Supabase (βλ. settings-setup.sql).');return;}
+  await loadCustomVarieties();
+  showModal('settingsModalContainer',settingsModalHTML());
+}
+
+async function deleteCustomVariety(id){
+  if(!confirm('Διαγραφή αυτής της ποικιλίας από τη λίστα;'))return;
+  const{error}=await supabaseClient.from('custom_varieties').delete().eq('id',id);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  await loadCustomVarieties();
+  showModal('settingsModalContainer',settingsModalHTML());
+}
 
 // ─── SUPABASE SYNC (μεταφορά areas/blocks στο cloud) ───
 async function syncToSupabase(){
@@ -598,7 +727,10 @@ async function loadState(){
     saveState(); // κράτα και τοπικό αντίγραφο για offline fallback
   }else{
     // Fallback: localStorage (π.χ. πρώτη φορά, ή δεν υπάρχει σύνδεση)
-    const isMarathasa=(document.getElementById('hWinery')?.value||'')==='Marathasa Winery';
+    // Πριν εδώ γινόταν σύγκριση με το ΚΕΙΜΕΝΟ του πεδίου Winery ("Marathasa Winery") — αλλά
+    // αυτό το πεδίο τώρα ξεκινάει άδειο (placeholder) αντί για hardcoded τιμή, οπότε ο σωστός
+    // έλεγχος για "δεν έχουμε συγκεκριμένο winery_id" είναι απευθείας το ίδιο το WINERY_ID.
+    const isMarathasa=!WINERY_ID;
     const s=localStorage.getItem(storageKey());
     if(s){
       try{
@@ -620,6 +752,8 @@ async function loadState(){
     }catch(e){}
   }
   loadApiKey();
+  loadAccessCodes();
+  await loadCustomVarieties();
   renderAreas();
 }
 
@@ -715,7 +849,7 @@ function renderAreas(){
                 const hasBbchScan=b.observations.some(o=>o.type==='bbch'&&o.scanPhotos);
                 return`<div class="block-row">
                   <span class="blk-id" style="cursor:pointer" onclick="openBlockDetail(${ai},${vi},${bi})">${b.id}</span>
-                  <span class="blk-variety" style="cursor:pointer" onclick="openBlockDetail(${ai},${vi},${bi})">${b.variety||'—'}</span>
+                  <span class="blk-variety" style="cursor:pointer" onclick="openBlockDetail(${ai},${vi},${bi})">${b.variety?displayVariety(b.variety):'—'}</span>
                   <span class="blk-year">${b.yearPlanted||''}</span>
                   <span class="blk-ha">${b.ha?b.ha+' ha':''}</span>
                   ${oc2?`<span class="blk-obs">${oc2} obs${hasBbchScan?' 📷':''}</span>`:''}
@@ -988,7 +1122,7 @@ function openBlockDetail(ai,vi,bi){
       <div style="width:10px;height:10px;border-radius:50%;background:${col};"></div>
       <div style="flex:1;">
         <div style="font-size:16px;font-weight:600;">${b.id}</div>
-        <div style="font-size:12px;color:#888;">${a.name} · ${vy.code} · ${b.variety||'—'} · ${b.yearPlanted||'—'} · ${b.orientation||'—'}${b.ha?' · '+b.ha+' ha':''}</div>
+        <div style="font-size:12px;color:#888;">${a.name} · ${vy.code} · ${b.variety?displayVariety(b.variety):'—'} · ${b.yearPlanted||'—'} · ${b.orientation||'—'}${b.ha?' · '+b.ha+' ha':''}</div>
       </div>
       <button class="btn-scan" onclick="closeModal('obsModalContainer');openScanner(${ai},${vi},${bi})">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
@@ -1157,7 +1291,7 @@ function renderScanner(){
     <div class="scanner-header">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
       <span class="scanner-header-title">BBCH Scanner — ${b.id}</span>
-      <span style="font-size:12px;color:#aaa;">${b.variety||''}</span>
+      <span style="font-size:12px;color:#aaa;">${b.variety?displayVariety(b.variety):''}</span>
       <button class="btn btn-sm" style="border-color:#555;color:#ccc;" onclick="closeScanner()">✕</button>
     </div>
     <div class="scanner-body">

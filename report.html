@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vineyard Field Report</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:Georgia,'Times New Roman',serif;background:#faf9f6;color:#1a1a1a;font-size:14px;line-height:1.6;}
@@ -101,11 +102,10 @@ body{font-family:Georgia,'Times New Roman',serif;background:#faf9f6;color:#1a1a1
   <div id="reportContent"><div class="no-data">Loading report data...</div></div>
 </div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="shared.js"></script>
 <script>
 const BBCH_DESC={9:'Buds dormant',53:'Inflorescences visible, bracts unfolding',55:'Inflorescences visible, compact',57:'Inflorescences fully visible',61:'Beginning of flowering',65:'Full flowering (50%)',69:'End of flowering',71:'Fruit set',75:'Berries pea-size',77:'Berries touching',81:'Begin ripening',85:'Softening of berries',89:'Full ripeness'};
 const AREA_COLORS=['#7F77DD','#1D9E75','#D85A30','#378ADD','#BA7517','#D4537E','#2d6a4f','#8B5CF6'];
-const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
-const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
 const supa=(window.supabase)?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
 const urlParams=new URLSearchParams(window.location.search);
 const WINERY_ID=urlParams.get('winery_id');
@@ -196,22 +196,8 @@ async function loadFromSupabaseLive(){
   }
 }
 
-// Διορθώσεις ονομάτων ποικιλιών (π.χ. λάθος καταχώρηση παλιότερα)
-const VARIETY_NAME_FIX={'Moschato Fileri':'Moschofilero'};
-
-// Παίρνει το raw variety string ενός block (π.χ. "YND/XNS — Yiannoudi/Xynisteri")
-// και επιστρέφει καθαρά ονόματα ποικιλιών χωρίς ακρωνύμια: ['Yiannoudi','Xynisteri']
-function parseVarietyNames(varietyStr){
-  if(!varietyStr)return['Άγνωστη ποικιλία'];
-  const parts=varietyStr.split('—');
-  const namePart=(parts.length>1?parts[1]:parts[0]).trim();
-  return namePart.split('/').map(s=>s.trim()).map(s=>VARIETY_NAME_FIX[s]||s).filter(Boolean);
-}
-
-// Καθαρό όνομα για εμφάνιση στον πίνακα blocks (π.χ. "Yiannoudi / Xynisteri")
-function displayVariety(varietyStr){
-  return parseVarietyNames(varietyStr).join(' / ');
-}
+// Οι VARIETY_NAME_FIX / parseVarietyNames / displayVariety ζουν πλέον στο shared.js
+// (κοινές για όλες τις σελίδες — βλ. shared.js για λεπτομέρειες).
 
 function colorFor(i){return AREA_COLORS[i%AREA_COLORS.length];}
 

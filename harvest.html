@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Προγραμματισμός Τρύγου</title>
+<link rel="icon" type="image/x-icon" href="favicon.ico">
 <style>
   :root{
     --ink:#1a1a1a; --ink-dim:#666; --ink-faint:#999;
@@ -71,71 +72,14 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="shared.js"></script>
 <script>
-// access-check.js
-// Κοινό helper για σελίδες που δέχονται είτε πραγματικό Supabase login (ο σύμβουλος)
-// είτε προσωπικό access code (εργαζόμενοι οινοποιείου, χωρίς email/password).
-// Καλείται ως: const access = await requireAccess(supa, WINERY_ID);
-// Επιστρέφει null (και κάνει redirect στο access.html) αν δεν υπάρχει έγκυρη πρόσβαση.
-// Αλλιώς επιστρέφει { method:'auth'|'code', personName, wineryId }.
-
-async function requireAccess(supa, wineryId) {
-  // 1) Έλεγχος πραγματικού Supabase login (σύμβουλος)
-  try {
-    const { data: { session } } = await supa.auth.getSession();
-    if (session && session.user) {
-      if (wineryId) {
-        const { data: membership } = await supa
-          .from('memberships')
-          .select('winery_id')
-          .eq('user_id', session.user.id)
-          .eq('winery_id', wineryId)
-          .maybeSingle();
-        if (membership) {
-          return { method: 'auth', personName: session.user.email, wineryId };
-        }
-      } else {
-        return { method: 'auth', personName: session.user.email, wineryId: null };
-      }
-    }
-  } catch (e) {
-    console.warn('requireAccess: auth session check failed', e);
-  }
-
-  // 2) Έλεγχος access code session (εργαζόμενος)
-  try {
-    const raw = sessionStorage.getItem('accessSession');
-    if (raw) {
-      const acc = JSON.parse(raw);
-      if (acc && acc.wineryId && String(acc.wineryId) === String(wineryId)) {
-        return { method: 'code', personName: acc.personName, wineryId: acc.wineryId };
-      }
-    }
-  } catch (e) {
-    console.warn('requireAccess: access code session check failed', e);
-  }
-
-  // 3) Καμία έγκυρη πρόσβαση — redirect στο access.html
-  const currentPage = window.location.pathname.split('/').pop();
-  window.location.href = 'access.html?return=' + encodeURIComponent(currentPage);
-  return null;
-}
-</script>
-<script>
-const SUPABASE_URL='https://xxyrareqzgvsaolhftbh.supabase.co';
-const SUPABASE_KEY='sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
 const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 const urlParams=new URLSearchParams(window.location.search);
 const WINERY_ID=urlParams.get('winery_id');
 document.getElementById('backLink').href='reports.html?winery_id='+WINERY_ID;
 
-const VARIETY_NAME_FIX={'Moschato Fileri':'Moschofilero'};
-function parseVarietyNames(varietyStr){
-  if(!varietyStr)return['Άγνωστη ποικιλία'];
-  const parts=varietyStr.split('—');
-  const namePart=(parts.length>1?parts[1]:parts[0]).trim();
-  return namePart.split('/').map(s=>s.trim()).map(s=>VARIETY_NAME_FIX[s]||s).filter(Boolean);
-}
+// Οι VARIETY_NAME_FIX / parseVarietyNames ζουν πλέον στο shared.js (κοινές για όλες τις σελίδες).
 
 function fmtShortDate(d){
   if(!d)return'—';
@@ -222,10 +166,28 @@ async function loadData(){
   const vineyardCodeById={};
   vineyardsRows.forEach(v=>{vineyardCodeById[v.id]=v.vineyard_code;});
   const blockById={};
-  // Ετικέτα γραμμής στον πίνακα = ο αμπελώνας-γονέας (πρώην block_code, π.χ. όνομα παραγωγού στο Βασιλικόν),
-  // ώστε πολλαπλά blocks/ποικιλίες κάτω από τον ίδιο αμπελώνα να εμφανίζονται στην ίδια γραμμή.
-  blocksRows.forEach(b=>{blockById[b.id]={...b,rowLabel:vineyardCodeById[b.vineyard_id]||b.block_code};});
+  blocksRows.forEach(b=>{blockById[b.id]=b;});
   const blockIds=blocksRows.map(b=>b.id);
+
+  // Ετικέτα γραμμής στον πίνακα = ο αμπελώνας-γονέας (π.χ. όνομα παραγωγού στο Βασιλικόν), ώστε
+  // πολλαπλά blocks/ποικιλίες κάτω από τον ίδιο αμπελώνα να εμφανίζονται μαζί σε μία γραμμή —
+  // ΕΚΤΟΣ αν δύο blocks του ΙΔΙΟΥ αμπελώνα έχουν την ΙΔΙΑ ποικιλία, οπότε η συγχώνευση θα έκρυβε
+  // το ένα block πίσω από το άλλο (και θα "έσβηνε" σιωπηλά δεδομένα της ίδιας ημερομηνίας). Σε
+  // αυτή την περίπτωση δείχνουμε αμπελώνα + block, ώστε να ξεχωρίζουν.
+  const varietyVineyardCount={};
+  blocksRows.forEach(b=>{
+    const vCode=vineyardCodeById[b.vineyard_id]||b.block_code;
+    parseVarietyNames(b.variety).forEach(variety=>{
+      const key=variety+'|'+vCode;
+      varietyVineyardCount[key]=(varietyVineyardCount[key]||0)+1;
+    });
+  });
+  function rowLabelFor(b,variety){
+    const vCode=vineyardCodeById[b.vineyard_id]||b.block_code;
+    const key=variety+'|'+vCode;
+    if(vCode!==b.block_code&&varietyVineyardCount[key]>1)return vCode+' · '+b.block_code;
+    return vCode;
+  }
 
   let estRows=[];
   if(blockIds.length){
@@ -260,9 +222,10 @@ async function loadData(){
     yearSet.add(date.slice(0,4));
     const names=parseVarietyNames(block.variety);
     names.forEach(variety=>{
+      const rowLabel=rowLabelFor(block,variety);
       if(!allVarietyData[variety])allVarietyData[variety]={};
-      if(!allVarietyData[variety][block.rowLabel])allVarietyData[variety][block.rowLabel]={};
-      allVarietyData[variety][block.rowLabel][date]={
+      if(!allVarietyData[variety][rowLabel])allVarietyData[variety][rowLabel]={};
+      allVarietyData[variety][rowLabel][date]={
         baume:r.baume, tartaricAcid:r.tartaric_acid, ph:r.ph,
         berryWeight:r.berry_weight_g, juiceYield:r.juice_yield, yieldEst:r.yield_est_kg_ha
       };
@@ -274,14 +237,15 @@ async function loadData(){
     yearSet.add(r.scheduled_date.slice(0,4));
     const names=parseVarietyNames(block.variety);
     names.forEach(variety=>{
+      const rowLabel=rowLabelFor(block,variety);
       if(!allActualData[variety])allActualData[variety]={};
-      if(!allActualData[variety][block.rowLabel])allActualData[variety][block.rowLabel]={};
-      allActualData[variety][block.rowLabel][r.scheduled_date]=(allActualData[variety][block.rowLabel][r.scheduled_date]||0)+(r.actual_kg||0);
+      if(!allActualData[variety][rowLabel])allActualData[variety][rowLabel]={};
+      allActualData[variety][rowLabel][r.scheduled_date]=(allActualData[variety][rowLabel][r.scheduled_date]||0)+(r.actual_kg||0);
       // Baumé καταχωρημένο απευθείας στο ημερολόγιο τρύγου τη στιγμή του τρύγου (όχι από δειγματοληψία)
       if(r.actual_baume!==null&&r.actual_baume!==undefined){
         if(!allActualBaumeData[variety])allActualBaumeData[variety]={};
-        if(!allActualBaumeData[variety][block.rowLabel])allActualBaumeData[variety][block.rowLabel]={};
-        allActualBaumeData[variety][block.rowLabel][r.scheduled_date]=r.actual_baume;
+        if(!allActualBaumeData[variety][rowLabel])allActualBaumeData[variety][rowLabel]={};
+        allActualBaumeData[variety][rowLabel][r.scheduled_date]=r.actual_baume;
       }
     });
   });
