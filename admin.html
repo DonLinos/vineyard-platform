@@ -355,6 +355,24 @@ async function generateAccessCode(){
   showModal('settingsModalContainer',settingsModalHTML());
 }
 
+let codeCheckTimer=null;
+async function checkCodeAvailability(){
+  const inp=document.getElementById('acCustomCode');
+  const statusEl=document.getElementById('acCodeStatus');
+  if(!inp||!statusEl)return;
+  const code=inp.value.trim().toUpperCase();
+  clearTimeout(codeCheckTimer);
+  if(!code){statusEl.textContent='';return;}
+  statusEl.textContent='…';statusEl.style.color='#888';
+  codeCheckTimer=setTimeout(async()=>{
+    if(!supabaseClient)return;
+    const{data,error}=await supabaseClient.from('access_codes').select('id').eq('code',code).maybeSingle();
+    if(error){statusEl.textContent='';return;}
+    if(data){statusEl.textContent='✗ Ο κωδικός χρησιμοποιείται ήδη';statusEl.style.color='#c0392b';}
+    else{statusEl.textContent='✓ Διαθέσιμος';statusEl.style.color='#2d6a4f';}
+  },400);
+}
+
 async function editAccessCode(id,currentCode){
   const next=prompt('Νέος κωδικός για αυτό το άτομο:',currentCode);
   if(next===null)return; // Cancel
@@ -428,10 +446,10 @@ function settingsModalHTML(){
     <div class="sec-lbl">Κωδικοί πρόσβασης προσωπικού</div>
     <div style="font-size:12px;color:#888;margin-bottom:10px;">Δημιούργησε έναν κωδικό για κάθε άτομο που χρειάζεται πρόσβαση χωρίς λογαριασμό Supabase (π.χ. εργάτης αμπελιού, επόπτης). Ο κωδικός μπαίνει στη σελίδα access.html. Μπορείς να ορίσεις εσύ τον κωδικό ή να αφήσεις το πεδίο κενό για αυτόματη δημιουργία — και να αλλάξεις οποιονδήποτε κωδικό αργότερα με "Αλλαγή".</div>
     <div id="accessCodesList" style="margin-bottom:12px;">${accessCodesListHTML()}</div>
-    <div class="g3" style="align-items:end;">
+    <div class="g3" style="align-items:start;">
       <div class="field"><span class="flbl">Όνομα ατόμου</span><input class="finp" id="acPersonName" placeholder="π.χ. Γιώργος Παύλου"></div>
-      <div class="field"><span class="flbl">Κωδικός (προαιρετικό)</span><input class="finp" id="acCustomCode" placeholder="π.χ. GP2026" maxlength="20" style="text-transform:uppercase;"></div>
-      <button class="btn" onclick="generateAccessCode()">+ Νέος κωδικός</button>
+      <div class="field"><span class="flbl">Κωδικός (προαιρετικό)</span><input class="finp" id="acCustomCode" placeholder="π.χ. GP2026" maxlength="20" style="text-transform:uppercase;" oninput="checkCodeAvailability()"><div id="acCodeStatus" style="font-size:11px;margin-top:3px;min-height:14px;"></div></div>
+      <button class="btn" style="margin-top:20px;" onclick="generateAccessCode()">+ Νέος κωδικός</button>
     </div>
 
     <div class="sec-lbl">Dashboard πελάτη</div>
