@@ -9,6 +9,11 @@
 const SUPABASE_URL = 'https://xxyrareqzgvsaolhftbh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
 
+// Το όνομα του σύμβουλου εμφανίζεται στο dashboard κάθε οινοποιείου (είναι ο ίδιος σε όλα,
+// σε αντίθεση με τον επόπτη που είναι διαφορετικός ανά οινοποιείο — αυτός ρυθμίζεται από
+// τις Ρυθμίσεις ⚙️ στο admin.html). Άλλαξέ το εδώ αν χρειαστεί ποτέ.
+const CONSULTANT_NAME = 'Απόστολος Γρηγορίου';
+
 // Κοινό helper για σελίδες που δέχονται είτε πραγματικό Supabase login (ο σύμβουλος)
 // είτε προσωπικό access code (εργαζόμενοι οινοποιείου, χωρίς email/password).
 // Καλείται ως: const access = await requireAccess(supa, WINERY_ID);

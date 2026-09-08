@@ -35,12 +35,20 @@
   .msg { font-size:13px; line-height:1.5; margin:14px 0 0; padding:10px 12px; border-radius:6px; display:none; }
   .msg.error { display:block; background:rgba(217,119,87,.12); color:#eeab93; border:1px solid rgba(217,119,87,.3); }
   .foot { text-align:center; margin-top:18px; font-size:13px; color:var(--ink-faint); }
+
+  /* Εποχιακό/ημερήσιο hero — μέχρι να ανέβουν πραγματικές φωτογραφίες (βλ. SEASON_PHOTOS στο
+     script) δείχνει gradient + εικονίδιο ανάλογα με την εποχή του χρόνου στην Κύπρο. */
+  .hero { position:relative; height:150px; border-radius:12px; overflow:hidden; margin:0 0 22px; background-size:cover; background-position:center; display:flex; align-items:flex-end; }
+  .hero::after { content:''; position:absolute; inset:0; background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0) 65%); }
+  .hero-label { position:relative; z-index:1; padding:12px 16px; font-size:13px; color:#fff; display:flex; align-items:center; gap:8px; }
+  .hero-label .ic { font-size:18px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <p class="eyebrow">Αμπελουργική παρακολούθηση</p>
   <h1>Είσοδος με κωδικό</h1>
+  <div class="hero" id="hero"><div class="hero-label"><span class="ic" id="heroIcon">🍇</span><span id="heroLabel">…</span></div></div>
   <div class="card">
     <div class="field">
       <label for="code">Ο προσωπικός σου κωδικός</label>
@@ -101,6 +109,49 @@
   btn.addEventListener('click', submitCode);
   input.addEventListener('keydown', e => { if (e.key === 'Enter') submitCode(); });
   input.focus();
+
+  // ─── Εποχιακό/ημερήσιο hero ───
+  // Πρόσθεσε εδώ πραγματικές φωτογραφίες (5-10 ανά εποχή) όταν είναι έτοιμες — π.χ.
+  // 'photos/autumn-1.jpg' — και θα εμφανίζονται αυτόματα αντί για το gradient fallback,
+  // αλλάζοντας κάθε μέρα (βάσει ημέρας του έτους).
+  const SEASON_PHOTOS = {
+    winter: [], // Δεκ–Φεβ: κλάδεμα, ανάπαυση πρέμνων
+    spring: [], // Μαρ–Μάιος: βλάστηση, άνθιση
+    summer: [], // Ιούν–Αύγ: ωρίμανση, καλοκαιρινές εργασίες
+    autumn: []  // Σεπ–Νοέ: τρύγος
+  };
+  const SEASONS = {
+    winter: { icon:'✂️', label:'Χειμώνας · Κλάδεμα', gradient:'linear-gradient(135deg,#2b3a4a,#1d2620)' },
+    spring: { icon:'🌱', label:'Άνοιξη · Βλάστηση', gradient:'linear-gradient(135deg,#3d5a3a,#26312a)' },
+    summer: { icon:'☀️', label:'Καλοκαίρι · Ωρίμανση', gradient:'linear-gradient(135deg,#8f6f2c,#3a2e18)' },
+    autumn: { icon:'🍇', label:'Φθινόπωρο · Τρύγος', gradient:'linear-gradient(135deg,#7a3b2e,#3a231c)' }
+  };
+  function seasonForDate(d) {
+    const m = d.getMonth() + 1; // 1-12
+    if (m === 12 || m <= 2) return 'winter';
+    if (m >= 3 && m <= 5) return 'spring';
+    if (m >= 6 && m <= 8) return 'summer';
+    return 'autumn';
+  }
+  function dayOfYear(d) {
+    const start = new Date(d.getFullYear(), 0, 0);
+    return Math.floor((d - start) / 86400000);
+  }
+  (function setHero() {
+    const today = new Date();
+    const key = seasonForDate(today);
+    const meta = SEASONS[key];
+    const heroEl = document.getElementById('hero');
+    const photos = SEASON_PHOTOS[key];
+    if (photos && photos.length) {
+      const photo = photos[dayOfYear(today) % photos.length];
+      heroEl.style.backgroundImage = `url('${photo}')`;
+    } else {
+      heroEl.style.background = meta.gradient;
+    }
+    document.getElementById('heroIcon').textContent = meta.icon;
+    document.getElementById('heroLabel').textContent = meta.label;
+  })();
 </script>
 </body>
 </html>

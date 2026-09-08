@@ -7,15 +7,29 @@
 <link rel="icon" type="image/x-icon" href="favicon.ico">
 <style>
   :root{
-    --ink:#f2ede1; --ink-dim:#b9c2b3; --bg:#1d2620; --card:#26312a;
+    --ink:#f2ede1; --ink-dim:#b9c2b3; --ink-faint:#7c8a78; --bg:#1d2620; --card:#26312a;
     --line:#3a473e; --gold:#c99a3e;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;min-height:100dvh;}
-  body{padding:32px 20px;}
+  body{padding:32px 20px 40px;}
   .wrap{max-width:480px;margin:0 auto;}
   .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);text-align:center;margin:0 0 6px;}
-  h1{font-family:Georgia,serif;font-weight:400;font-size:24px;text-align:center;margin:0 0 32px;}
+  h1{font-family:Georgia,serif;font-weight:400;font-size:24px;text-align:center;margin:0 0 6px;}
+  .sub{text-align:center;font-size:13px;color:var(--ink-dim);margin:0 0 24px;}
+
+  .met-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 8px;margin-bottom:14px;}
+  .met-row{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;}
+  .met-val{font-size:18px;font-weight:600;color:var(--gold);}
+  .met-lbl{font-size:10px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
+  .met-row.loading .met-val{color:var(--ink-faint);}
+
+  .people-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:22px;font-size:13px;color:var(--ink-dim);display:flex;flex-direction:column;gap:4px;}
+  .people-card b{color:var(--ink);font-weight:600;}
+  .people-card .row{display:flex;justify-content:space-between;gap:12px;}
+
+  .section-lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 10px;padding-left:2px;}
+
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:14px;text-decoration:none;color:var(--ink);display:block;transition:border-color .15s;}
   .card:hover,.card:active{border-color:var(--gold);}
   .card-icon{font-size:26px;margin-bottom:8px;}
@@ -29,6 +43,24 @@
 <div class="wrap">
   <p class="eyebrow">Vineyard Reports</p>
   <h1 id="pageTitle">Επίλεξε report</h1>
+  <p class="sub" id="wineryName"></p>
+
+  <div class="met-card">
+    <div class="met-row loading" id="metricRow">
+      <div><div class="met-val">…</div><div class="met-lbl">Areas</div></div>
+      <div><div class="met-val">…</div><div class="met-lbl">Vineyards</div></div>
+      <div><div class="met-val">…</div><div class="met-lbl">Blocks</div></div>
+      <div><div class="met-val">…</div><div class="met-lbl">Παρατηρήσεις</div></div>
+      <div><div class="met-val">…</div><div class="met-lbl">Εκτάριa</div></div>
+    </div>
+  </div>
+
+  <div class="people-card" id="peopleCard" style="display:none;">
+    <div class="row"><span>Επόπτης</span><b id="supervisorName">—</b></div>
+    <div class="row"><span>Σύμβουλος</span><b id="consultantName">—</b></div>
+  </div>
+
+  <p class="section-lbl">Reports</p>
 
   <a class="card" id="growthCard" href="#">
     <div class="card-icon">🌱</div>
@@ -57,6 +89,8 @@
   <a class="back-link" id="adminLink" href="#">← Πίσω στο admin</a>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="shared.js"></script>
 <script>
   const urlParams=new URLSearchParams(window.location.search);
   const WINERY_ID=urlParams.get('winery_id')||'';
@@ -66,6 +100,80 @@
   document.getElementById('workordersCard').href='workorders.html'+q;
   document.getElementById('scheduleCard').href='harvest-schedule.html'+q;
   document.getElementById('adminLink').href='admin.html'+q;
+
+  const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+
+  async function loadDashboard(){
+    const access=await requireAccess(supa,WINERY_ID);
+    if(!access)return; // requireAccess κάνει ήδη redirect στο access.html αν χρειάζεται
+
+    // Όνομα οινοποιείου + επόπτης (supervisor_name μπορεί να μην υπάρχει ακόμα σαν στήλη)
+    let winery=null;
+    {
+      const r1=await supa.from('wineries').select('name, supervisor_name').eq('id',WINERY_ID).maybeSingle();
+      if(!r1.error){winery=r1.data;}
+      else{
+        const r2=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+        winery=r2.data;
+      }
+    }
+    if(winery){
+      document.getElementById('wineryName').textContent=winery.name||'';
+      document.title=(winery.name||'Reports')+' — Vitis Vision';
+    }
+    document.getElementById('consultantName').textContent=(typeof CONSULTANT_NAME!=='undefined'&&CONSULTANT_NAME)?CONSULTANT_NAME:'—';
+    if(winery&&winery.supervisor_name){
+      document.getElementById('supervisorName').textContent=winery.supervisor_name;
+      document.getElementById('peopleCard').style.display='flex';
+    }else if(typeof CONSULTANT_NAME!=='undefined'&&CONSULTANT_NAME){
+      // Δεν έχει οριστεί ακόμα επόπτης — δείξε τουλάχιστον τον σύμβουλο
+      document.getElementById('peopleCard').style.display='flex';
+    }
+
+    await loadMetrics();
+  }
+
+  async function loadMetrics(){
+    const setMetrics=(ta,tv,tb,to,ha)=>{
+      const row=document.getElementById('metricRow');
+      row.classList.remove('loading');
+      row.innerHTML=`
+        <div><div class="met-val">${ta}</div><div class="met-lbl">Areas</div></div>
+        <div><div class="met-val">${tv}</div><div class="met-lbl">Vineyards</div></div>
+        <div><div class="met-val">${tb}</div><div class="met-lbl">Blocks</div></div>
+        <div><div class="met-val">${to}</div><div class="met-lbl">Παρατηρήσεις</div></div>
+        <div><div class="met-val">${ha.toFixed(1)}</div><div class="met-lbl">Εκτάρια</div></div>`;
+    };
+    try{
+      if(!WINERY_ID){setMetrics(0,0,0,0,0);return;}
+      const{data:areas}=await supa.from('areas').select('id').eq('winery_id',WINERY_ID);
+      const areaIds=(areas||[]).map(a=>a.id);
+      if(!areaIds.length){setMetrics(0,0,0,0,0);return;}
+
+      const{data:vineyards}=await supa.from('vineyards').select('id').in('area_id',areaIds);
+      const vineyardIds=(vineyards||[]).map(v=>v.id);
+
+      const{data:blocks}=await supa.from('blocks').select('id, hectares').in('area_id',areaIds);
+      const blockIds=(blocks||[]).map(b=>b.id);
+      const ha=(blocks||[]).reduce((s,b)=>s+(parseFloat(b.hectares)||0),0);
+
+      let totalObs=0;
+      if(blockIds.length){
+        const obsTables=['bbch_observations','insect_observations','disease_observations','management_observations','estimation_observations'];
+        const counts=await Promise.all(obsTables.map(t=>
+          supa.from(t).select('id',{count:'exact',head:true}).in('block_id',blockIds)
+        ));
+        totalObs=counts.reduce((s,r)=>s+(r.count||0),0);
+      }
+
+      setMetrics(areaIds.length,vineyardIds.length,blockIds.length,totalObs,ha);
+    }catch(e){
+      console.error('Αποτυχία φόρτωσης μετρικών:',e);
+      setMetrics(0,0,0,0,0);
+    }
+  }
+
+  loadDashboard();
 </script>
 </body>
 </html>

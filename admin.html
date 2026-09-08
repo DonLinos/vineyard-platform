@@ -369,6 +369,7 @@ async function deleteAccessCode(id){
 // δημιουργηθεί μία φορά στο Supabase (βλ. settings-setup.sql) — μέχρι τότε το "+ Προσθήκη"
 // θα δείξει σφάλμα, αλλά η υπόλοιπη εφαρμογή συνεχίζει κανονικά.
 let customVarieties=[]; // [{id, code, name}]
+let currentSupervisorName=''; // wineries.supervisor_name — εμφανίζεται στο dashboard του πελάτη (reports.html)
 
 async function loadCustomVarieties(){
   if(!supabaseClient||!WINERY_ID)return;
@@ -410,6 +411,13 @@ function settingsModalHTML(){
       <button class="btn" onclick="generateAccessCode()">+ Νέος κωδικός</button>
     </div>
 
+    <div class="sec-lbl">Dashboard πελάτη</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">Το όνομα του επόπτη που επισκέπτεται αυτό το οινοποιείο — εμφανίζεται στο dashboard που βλέπει ο πελάτης (μαζί με το όνομα του συμβούλου).</div>
+    <div class="g3" style="align-items:end;">
+      <div class="field" style="grid-column:span 2;"><span class="flbl">Όνομα επόπτη</span><input class="finp" id="stSupervisorName" placeholder="π.χ. Μαρία Ιωάννου" value="${(currentSupervisorName||'').replace(/"/g,'&quot;')}"></div>
+      <button class="btn" onclick="saveSupervisorName()">Αποθήκευση</button>
+    </div>
+
     <div style="margin-top:16px;text-align:right;"><button class="btn" onclick="closeModal('settingsModalContainer')">Κλείσιμο</button></div>
   </div></div>`;
 }
@@ -440,6 +448,15 @@ async function deleteCustomVariety(id){
   if(error){alert('Σφάλμα: '+error.message);return;}
   await loadCustomVarieties();
   showModal('settingsModalContainer',settingsModalHTML());
+}
+
+async function saveSupervisorName(){
+  const name=(document.getElementById('stSupervisorName')?.value||'').trim();
+  if(!supabaseClient||!WINERY_ID){alert('Δεν υπάρχει σύνδεση με το Supabase.');return;}
+  const{error}=await supabaseClient.from('wineries').update({supervisor_name:name||null}).eq('id',WINERY_ID);
+  if(error){alert('Αποτυχία αποθήκευσης ('+error.message+'). Αν είναι η πρώτη φορά, μάλλον χρειάζεται να τρέξεις πρώτα το supervisor-name-setup.sql στο Supabase.');return;}
+  currentSupervisorName=name;
+  alert('Αποθηκεύτηκε.');
 }
 
 // ─── SUPABASE SYNC (μεταφορά areas/blocks στο cloud) ───
@@ -727,11 +744,22 @@ async function loadState(){
   if(!ok)return;
 
   if(supabaseClient&&WINERY_ID){
-    const{data:w}=await supabaseClient.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+    // supervisor_name μπορεί να μην υπάρχει ακόμα σαν στήλη (αν δεν έτρεξε το supervisor-name-setup.sql)—
+    // σε αυτή την περίπτωση κάνουμε fallback σε select μόνο του name, ώστε να μη σπάει τίποτα.
+    let w=null;
+    {
+      const r1=await supabaseClient.from('wineries').select('name, supervisor_name').eq('id',WINERY_ID).maybeSingle();
+      if(!r1.error){w=r1.data;}
+      else{
+        const r2=await supabaseClient.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
+        w=r2.data;
+      }
+    }
     if(w){
       document.querySelector('.topbar-title').textContent=w.name+' · Admin';
       const hw=document.getElementById('hWinery');
       if(hw){hw.value=w.name;hw.readOnly=true;}
+      currentSupervisorName=w.supervisor_name||'';
     }
   }
 
