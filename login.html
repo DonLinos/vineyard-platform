@@ -156,6 +156,42 @@
     color: var(--ink);
     margin: 14px 0;
   }
+  .tabs {
+    display: flex;
+    gap: 6px;
+    margin: 0 0 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 4px;
+  }
+  .tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 8px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ink-dim);
+    cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .tab-btn.active { background: var(--gold); color: #241a08; }
+  input[type="text"].code-input {
+    width: 100%;
+    background: #18201b;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 11px 12px;
+    font-size: 20px;
+    letter-spacing: .08em;
+    color: var(--ink);
+    outline: none;
+    text-align: center;
+    text-transform: uppercase;
+  }
+  input[type="text"].code-input:focus { border-color: var(--gold-dim); }
 </style>
 </head>
 <body>
@@ -174,19 +210,44 @@
   <div id="login-view">
     <p class="eyebrow">Αμπελουργική παρακολούθηση</p>
     <h1>Σύνδεση</h1>
-    <div class="card">
-      <div class="field">
-        <label for="email">Email</label>
-        <input type="email" id="email" autocomplete="email" placeholder="name@example.com">
-      </div>
-      <div class="field">
-        <label for="password">Κωδικός</label>
-        <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
-      </div>
-      <button class="primary" id="login-btn">Σύνδεση</button>
-      <div class="msg" id="login-msg"></div>
+
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-code" type="button">Κωδικός πρόσβασης</button>
+      <button class="tab-btn" id="tab-email" type="button">Email (σύμβουλος)</button>
     </div>
-    <p class="foot">Χρειάζεσαι πρόσβαση; Απευθύνσου στον γεωπόνο σου.</p>
+
+    <div id="code-view">
+      <div class="card">
+        <div class="field">
+          <label for="code">Ο προσωπικός σου κωδικός</label>
+          <input type="text" class="code-input" id="code" autocomplete="off" placeholder="π.χ. VK4821" maxlength="20">
+        </div>
+        <button class="primary" id="code-btn">Είσοδος</button>
+        <div class="msg" id="code-msg"></div>
+      </div>
+      <p class="foot">Δεν έχεις κωδικό; Απευθύνσου στον γεωπόνο σου.</p>
+    </div>
+
+    <div id="email-view" style="display:none;">
+      <div class="card">
+        <div class="field">
+          <label for="email">Email</label>
+          <input type="email" id="email" autocomplete="email" placeholder="name@example.com">
+        </div>
+        <div class="field">
+          <label for="password">Κωδικός</label>
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <div class="field" id="signup-note-field" style="display:none;">
+          <label for="signup-note">Ποιο οινοποίειο αφορά; (προαιρετικό)</label>
+          <input type="text" id="signup-note" placeholder="π.χ. Βασιλικόν Winery">
+        </div>
+        <button class="primary" id="login-btn">Σύνδεση</button>
+        <button class="primary" id="signup-btn" style="display:none;background:transparent;border:1px solid var(--gold-dim);color:var(--gold);">Δημιουργία λογαριασμού</button>
+        <div class="msg" id="login-msg"></div>
+      </div>
+      <p class="foot" id="signup-toggle-foot">Δεν έχεις λογαριασμό; <a id="show-signup">Κάνε εγγραφή</a></p>
+    </div>
   </div>
 
   <div id="app-view">
@@ -214,6 +275,10 @@
 <script>
   const supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+  const urlParams = new URLSearchParams(window.location.search);
+  const HAS_RETURN = urlParams.has('return');
+  const RETURN_TO = urlParams.get('return') || 'reports.html';
+
   const loginView = document.getElementById("login-view");
   const appView = document.getElementById("app-view");
   const loginMsg = document.getElementById("login-msg");
@@ -229,6 +294,128 @@
     el.textContent = "";
     el.className = "msg";
   }
+
+  // ─── Tabs: Κωδικός πρόσβασης (πελάτης/εργαζόμενος) vs. Email (σύμβουλος) ───
+  const tabCode = document.getElementById("tab-code");
+  const tabEmail = document.getElementById("tab-email");
+  const codeView = document.getElementById("code-view");
+  const emailView = document.getElementById("email-view");
+
+  function showCodeTab() {
+    tabCode.classList.add("active"); tabEmail.classList.remove("active");
+    codeView.style.display = "block"; emailView.style.display = "none";
+  }
+  function showEmailTab() {
+    tabEmail.classList.add("active"); tabCode.classList.remove("active");
+    emailView.style.display = "block"; codeView.style.display = "none";
+  }
+  tabCode.addEventListener("click", showCodeTab);
+  tabEmail.addEventListener("click", showEmailTab);
+
+  // ─── Είσοδος με κωδικό πρόσβασης (χωρίς λογαριασμό Supabase) ───
+  const codeMsg = document.getElementById("code-msg");
+  const codeBtn = document.getElementById("code-btn");
+  const codeInput = document.getElementById("code");
+
+  async function submitCode() {
+    const code = codeInput.value.trim();
+    if (!code) { showMsg(codeMsg, "Γράψε τον κωδικό σου.", "error"); return; }
+
+    codeBtn.disabled = true; codeBtn.textContent = "Έλεγχος...";
+    clearMsg(codeMsg);
+
+    // Χρησιμοποιεί τη συνάρτηση check_access_code (βλ. signup-and-access-security-setup.sql)
+    // αντί για απευθείας select στον πίνακα access_codes — έτσι ο δημόσιος (anon) χρήστης δεν
+    // μπορεί να διαβάσει ΟΛΟΥΣ τους κωδικούς, μόνο να ελέγξει τον συγκεκριμένο που έγραψε.
+    const { data: rows, error } = await supa.rpc("check_access_code", { p_code: code });
+    const data = rows && rows[0];
+
+    codeBtn.disabled = false; codeBtn.textContent = "Είσοδος";
+
+    if (error || !data || !data.active) {
+      showMsg(codeMsg, "Ο κωδικός δεν αναγνωρίστηκε. Έλεγξε ότι τον έγραψες σωστά.", "error");
+      return;
+    }
+
+    sessionStorage.setItem("accessSession", JSON.stringify({
+      wineryId: data.winery_id,
+      personName: data.person_name
+    }));
+
+    const sep = RETURN_TO.includes("?") ? "&" : "?";
+    window.location.href = RETURN_TO + sep + "winery_id=" + encodeURIComponent(data.winery_id);
+  }
+
+  codeBtn.addEventListener("click", submitCode);
+  codeInput.addEventListener("keydown", e => { if (e.key === "Enter") submitCode(); });
+
+  // ─── Σύνδεση ↔ Εγγραφή (μέσα στο tab "Email") ───
+  let signupMode = false;
+  const signupBtn = document.getElementById("signup-btn");
+  const showSignupLink = document.getElementById("show-signup");
+  const signupNoteField = document.getElementById("signup-note-field");
+  const signupToggleFoot = document.getElementById("signup-toggle-foot");
+
+  function setSignupMode(on) {
+    signupMode = on;
+    clearMsg(loginMsg);
+    loginBtn.style.display = on ? "none" : "block";
+    signupBtn.style.display = on ? "block" : "none";
+    signupNoteField.style.display = on ? "block" : "none";
+    signupToggleFoot.innerHTML = on
+      ? 'Έχεις ήδη λογαριασμό; <a id="show-signup">Σύνδεση</a>'
+      : 'Δεν έχεις λογαριασμό; <a id="show-signup">Κάνε εγγραφή</a>';
+    // Το innerHTML πιο πάνω έφτιαξε νέο <a>, οπότε ξαναδένουμε το click handler του.
+    document.getElementById("show-signup").addEventListener("click", () => setSignupMode(!signupMode));
+  }
+  showSignupLink.addEventListener("click", () => setSignupMode(!signupMode));
+
+  async function handleSignup() {
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value;
+    const note = document.getElementById("signup-note").value.trim();
+    clearMsg(loginMsg);
+
+    if (!email || !password) {
+      showMsg(loginMsg, "Συμπλήρωσε email και κωδικό.", "error");
+      return;
+    }
+    if (password.length < 6) {
+      showMsg(loginMsg, "Ο κωδικός πρέπει να έχει τουλάχιστον 6 χαρακτήρες.", "error");
+      return;
+    }
+
+    signupBtn.disabled = true;
+    signupBtn.textContent = "Δημιουργία...";
+
+    const { data, error } = await supa.auth.signUp({ email, password });
+
+    signupBtn.disabled = false;
+    signupBtn.textContent = "Δημιουργία λογαριασμού";
+
+    if (error) {
+      showMsg(loginMsg, "Αποτυχία εγγραφής: " + error.message, "error");
+      return;
+    }
+
+    // Καταγραφή της αίτησης, ώστε ο σύμβουλος να τη δει στο admin και να δώσει πρόσβαση.
+    // Αν δεν υπάρχει ακόμα session (π.χ. χρειάζεται επιβεβαίωση email), το insert θα αποτύχει
+    // αθόρυβα λόγω RLS — δεν πειράζει, ο λογαριασμός δημιουργήθηκε ούτως ή άλλως σωστά.
+    if (data.user) {
+      await supa.from("pending_signups").upsert(
+        { user_id: data.user.id, email, note: note || null },
+        { onConflict: "user_id", ignoreDuplicates: true }
+      );
+    }
+
+    if (data.session) {
+      showMsg(loginMsg, "Ο λογαριασμός δημιουργήθηκε! Περίμενε να σου δοθεί πρόσβαση σε οινοποίειο από τον σύμβουλο.", "info");
+    } else {
+      showMsg(loginMsg, "Ο λογαριασμός δημιουργήθηκε — έλεγξε το email σου για επιβεβαίωση, και μετά περίμενε να σου δοθεί πρόσβαση από τον σύμβουλο.", "info");
+    }
+  }
+
+  signupBtn.addEventListener("click", handleSignup);
 
   async function handleLogin() {
     const email = document.getElementById("email").value.trim();
@@ -268,6 +455,13 @@
       loginView.style.display = "none";
       appView.style.display = "block";
       showMsg(appMsg, "Δεν έχεις πρόσβαση σε κανένα κτήμα ακόμα. Απευθύνσου στον γεωπόνο σου.", "error");
+      // Safety net: αν το insert στο pending_signups απέτυχε τη στιγμή του sign up (π.χ. γιατί
+      // χρειαζόταν επιβεβαίωση email και τότε δεν υπήρχε ακόμα συνδεδεμένη σύνοδος), το
+      // καταγράφουμε τώρα — έτσι ο χρήστης θα φανεί σίγουρα στο admin για να του δοθεί πρόσβαση.
+      await supa.from("pending_signups").upsert(
+        { user_id: user.id, email: user.email },
+        { onConflict: "user_id", ignoreDuplicates: true }
+      );
       return;
     }
 
@@ -295,7 +489,10 @@
 
   document.getElementById("continue-btn").addEventListener("click", () => {
     if (!window._selectedWineryId) return;
-    window.location.href = "admin.html?winery_id=" + window._selectedWineryId;
+    // Αν ήρθε εδώ επειδή έληξε η σύνδεσή του σε συγκεκριμένη σελίδα (π.χ. harvest.html), γύρνα
+    // τον εκεί· αλλιώς (κανονική είσοδος μέσω QR/shortcut) πήγαινε στο admin, όπως πάντα.
+    const dest = HAS_RETURN ? RETURN_TO : "admin.html";
+    window.location.href = dest + "?winery_id=" + window._selectedWineryId;
   });
 
   document.getElementById("logout-link").addEventListener("click", async () => {

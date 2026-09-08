@@ -276,6 +276,7 @@ function scheduledCard(b){
       <div>
         <div class="block-name">${b.blockCode}${b.vineyardCode?' · '+b.vineyardCode:''}</div>
         <div class="block-meta">${b.variety}${s.estimated_kg?' · πρόβλεψη '+s.estimated_kg+' kg':''}</div>
+        ${s.created_by?`<div class="block-meta">Προγραμματίστηκε από: ${s.created_by}</div>`:''}
       </div>
       <span class="badge scheduled">Προγραμματισμένο</span>
     </div>
@@ -283,7 +284,7 @@ function scheduledCard(b){
       <input type="number" id="actual-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1">
       <input type="number" class="baume-input" id="actual-baume-${b.id}" placeholder="Baumé °" min="0" step="0.1">
       <button class="small" onclick="completeBlock('${b.id}','${s.id}')">✅ Ολοκλήρωση</button>
-      <button class="small ghost" onclick="unscheduleBlock('${b.id}','${s.id}')">Ακύρωση</button>
+      ${isAdmin?`<button class="small ghost" onclick="unscheduleBlock('${b.id}','${s.id}')">Ακύρωση</button>`:''}
     </div>
   </div>`;
 }
@@ -299,6 +300,7 @@ function doneCard(b){
       <div>
         <div class="block-name">${b.blockCode}${b.vineyardCode?' · '+b.vineyardCode:''}</div>
         <div class="block-meta">${b.variety} · τρυγήθηκε ${fmtDate(s.scheduled_date)} · ${s.actual_kg} kg${s.actual_baume!==null&&s.actual_baume!==undefined?' · Baumé '+s.actual_baume+'°':''}</div>
+        ${(s.updated_by||s.created_by)?`<div class="block-meta">Τελευταία ενημέρωση από: ${s.updated_by||s.created_by}</div>`:''}
       </div>
       <span class="badge done">Ολοκληρώθηκε</span>
     </div>
@@ -326,7 +328,9 @@ async function saveDoneEdit(blockId,scheduleId){
   if(!kg){alert('Γράψε τα πραγματικά kg.');return;}
   const updates={
     actual_kg:parseFloat(kg),
-    actual_baume:baume!==''?parseFloat(baume):null
+    actual_baume:baume!==''?parseFloat(baume):null,
+    updated_at:new Date().toISOString(),
+    updated_by:currentPersonName
   };
   if(dateInp){
     if(!dateInp.value){alert('Διάλεξε ημερομηνία τρύγου.');return;}
@@ -358,7 +362,8 @@ async function completeBlock(blockId,scheduleId){
   const{error}=await supa.from('harvest_schedule').update({
     actual_kg:parseFloat(val),
     actual_baume:baumeVal!==''?parseFloat(baumeVal):null,
-    updated_at:new Date().toISOString()
+    updated_at:new Date().toISOString(),
+    updated_by:currentPersonName
   }).eq('id',scheduleId);
   if(error){alert('Σφάλμα: '+error.message);return;}
   await loadAll();render();

@@ -240,6 +240,16 @@ async function requireAuth(){
     window.location.href='login.html';
     return false;
   }
+  // Έλεγχος ότι ο συγκεκριμένος λογαριασμός έχει πράγματι πρόσβαση σε ΑΥΤΟ το οινοποίειο —
+  // πριν, εδώ ελεγχόταν μόνο ότι υπάρχει ΚΑΠΟΙΑ συνδεδεμένη σύνοδος (χωρίς αυτό, ένας
+  // οποιοσδήποτε λογαριασμός θα μπορούσε να ανοίξει το admin.html για οποιοδήποτε winery_id).
+  const{data:membership}=await supabaseClient.from('memberships').select('winery_id').eq('user_id',session.user.id).eq('winery_id',WINERY_ID).maybeSingle();
+  if(!membership){
+    alert('Ο λογαριασμός σου δεν έχει ακόμα πρόσβαση σε αυτό το οινοποίειο. Αν μόλις έκανες εγγραφή, περίμενε να σου δοθεί πρόσβαση από τον σύμβουλο.');
+    await supabaseClient.auth.signOut();
+    window.location.href='login.html';
+    return false;
+  }
   return true;
 }
 
@@ -317,6 +327,41 @@ function makeAccessCode(){
 // Οι κωδικοί πρόσβασης δεν εμφανίζονται πλέον στην κύρια σελίδα (ήταν πολύ "μπροστά" για κάτι
 // που χρησιμοποιείται σπάνια) — ζουν τώρα μέσα στις Ρυθμίσεις (⚙️), σαν τις ποικιλίες.
 let accessCodes=[]; // [{id, person_name, code, active}]
+let pendingSignups=[]; // [{id, user_id, email, note, created_at}] — sign up με email που περιμένουν να τους δοθεί πρόσβαση
+
+async function loadPendingSignups(){
+  if(!supabaseClient){pendingSignups=[];return;}
+  const{data,error}=await supabaseClient.from('pending_signups').select('*').order('created_at');
+  if(error){console.warn('loadPendingSignups failed (μάλλον δεν έχει τρέξει ακόμα το signup-and-access-security-setup.sql):',error.message);pendingSignups=[];return;}
+  pendingSignups=data||[];
+}
+
+function pendingSignupsHTML(){
+  if(!pendingSignups.length)return'<div style="font-size:12px;color:#888;">Δεν υπάρχουν εκκρεμείς εγγραφές.</div>';
+  return pendingSignups.map(p=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;font-size:13px;">
+      <div style="flex:1;">${p.email}${p.note?'<div style="font-size:11px;color:#888;">'+p.note+'</div>':''}</div>
+      <button class="btn btn-sm" onclick="grantWineryAccess('${p.id}','${p.user_id}')">+ Πρόσβαση σε αυτό το οινοποίειο</button>
+      <button class="btn btn-sm btn-danger" onclick="dismissPendingSignup('${p.id}')">Απόρριψη</button>
+    </div>`).join('');
+}
+
+async function grantWineryAccess(pendingId,userId){
+  if(!supabaseClient||!WINERY_ID){alert('Δεν υπάρχει σύνδεση με το Supabase.');return;}
+  const{error:mErr}=await supabaseClient.from('memberships').insert({user_id:userId,winery_id:WINERY_ID,role:'agronomist'});
+  if(mErr){alert('Αποτυχία παραχώρησης πρόσβασης: '+mErr.message);return;}
+  await supabaseClient.from('pending_signups').delete().eq('id',pendingId);
+  await loadPendingSignups();
+  showModal('settingsModalContainer',settingsModalHTML());
+}
+
+async function dismissPendingSignup(id){
+  if(!confirm('Απόρριψη αυτής της αίτησης εγγραφής; Ο λογαριασμός θα παραμείνει χωρίς πρόσβαση σε κανένα οινοποίειο.'))return;
+  const{error}=await supabaseClient.from('pending_signups').delete().eq('id',id);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  await loadPendingSignups();
+  showModal('settingsModalContainer',settingsModalHTML());
+}
 
 async function loadAccessCodes(){
   if(!supabaseClient||!WINERY_ID){accessCodes=[];return;}
@@ -451,6 +496,10 @@ function settingsModalHTML(){
       <div class="field"><span class="flbl">Κωδικός (προαιρετικό)</span><input class="finp" id="acCustomCode" placeholder="π.χ. GP2026" maxlength="20" style="text-transform:uppercase;" oninput="checkCodeAvailability()"><div id="acCodeStatus" style="font-size:11px;margin-top:3px;min-height:14px;"></div></div>
       <button class="btn" style="margin-top:20px;" onclick="generateAccessCode()">+ Νέος κωδικός</button>
     </div>
+
+    <div class="sec-lbl">Εκκρεμείς εγγραφές (email)</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">Όποιος κάνει sign up με email από τη σελίδα σύνδεσης εμφανίζεται εδώ — δεν παίρνει καμία πρόσβαση αυτόματα. Δώσε του πρόσβαση σε ΑΥΤΟ το οινοποίειο (αυτό που βλέπεις τώρα), ή απόρριψε την αίτηση.</div>
+    <div id="pendingSignupsList" style="margin-bottom:12px;">${pendingSignupsHTML()}</div>
 
     <div class="sec-lbl">Dashboard πελάτη</div>
     <div style="font-size:12px;color:#888;margin-bottom:10px;">Το όνομα του επόπτη που επισκέπτεται αυτό το οινοποιείο — εμφανίζεται στο dashboard που βλέπει ο πελάτης (μαζί με το όνομα του συμβούλου).</div>
@@ -838,6 +887,7 @@ async function loadState(){
   loadApiKey();
   await loadAccessCodes();
   await loadCustomVarieties();
+  await loadPendingSignups();
   renderAreas();
 }
 

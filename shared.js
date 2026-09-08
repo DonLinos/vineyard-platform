@@ -55,9 +55,10 @@ async function requireAccess(supa, wineryId) {
     console.warn('requireAccess: access code session check failed', e);
   }
 
-  // 3) Καμία έγκυρη πρόσβαση — redirect στο access.html
+  // 3) Καμία έγκυρη πρόσβαση — redirect στην ενιαία σελίδα σύνδεσης (login.html), η οποία
+  // δέχεται είτε email+κωδικό (σύμβουλος) είτε προσωπικό κωδικό πρόσβασης (πελάτης/εργαζόμενος).
   const currentPage = window.location.pathname.split('/').pop();
-  window.location.href = 'access.html?return=' + encodeURIComponent(currentPage);
+  window.location.href = 'login.html?return=' + encodeURIComponent(currentPage);
   return null;
 }
 
