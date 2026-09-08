@@ -331,6 +331,7 @@ function accessCodesListHTML(){
     <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;font-size:13px;">
       <div style="flex:1;">${r.person_name}${r.active?'':' <span style="color:#c0392b;">(ανενεργός)</span>'}</div>
       <div style="font-family:monospace;font-size:14px;font-weight:700;letter-spacing:.06em;">${r.code}</div>
+      <button class="btn btn-sm" onclick="editAccessCode('${r.id}','${(r.code||'').replace(/'/g,"\\'")}')">Αλλαγή</button>
       <button class="btn btn-sm" onclick="toggleAccessCode('${r.id}',${!r.active})">${r.active?'Απενεργοποίηση':'Ενεργοποίηση'}</button>
       <button class="btn btn-sm btn-danger" onclick="deleteAccessCode('${r.id}')">Διαγραφή</button>
     </div>`).join('');
@@ -341,9 +342,30 @@ async function generateAccessCode(){
   const name=(nameInp?.value||'').trim();
   if(!name){alert('Γράψε πρώτα το όνομα του ατόμου.');return;}
   if(!supabaseClient||!WINERY_ID){alert('Δεν υπάρχει σύνδεση με το Supabase.');return;}
-  const code=makeAccessCode();
+  const customInp=document.getElementById('acCustomCode');
+  const custom=(customInp?.value||'').trim().toUpperCase();
+  const code=custom||makeAccessCode();
   const{error}=await supabaseClient.from('access_codes').insert({winery_id:WINERY_ID,person_name:name,code,active:true});
-  if(error){alert('Αποτυχία δημιουργίας κωδικού: '+error.message);return;}
+  if(error){
+    if(error.message&&error.message.toLowerCase().includes('duplicate')){alert('Ο κωδικός "'+code+'" χρησιμοποιείται ήδη — δοκίμασε άλλον (οι κωδικοί πρέπει να είναι μοναδικοί σε όλα τα οινοποιεία).');}
+    else{alert('Αποτυχία δημιουργίας κωδικού: '+error.message);}
+    return;
+  }
+  await loadAccessCodes();
+  showModal('settingsModalContainer',settingsModalHTML());
+}
+
+async function editAccessCode(id,currentCode){
+  const next=prompt('Νέος κωδικός για αυτό το άτομο:',currentCode);
+  if(next===null)return; // Cancel
+  const code=next.trim().toUpperCase();
+  if(!code){alert('Ο κωδικός δεν μπορεί να είναι κενός.');return;}
+  const{error}=await supabaseClient.from('access_codes').update({code}).eq('id',id);
+  if(error){
+    if(error.message&&error.message.toLowerCase().includes('duplicate')){alert('Ο κωδικός "'+code+'" χρησιμοποιείται ήδη — δοκίμασε άλλον (οι κωδικοί πρέπει να είναι μοναδικοί σε όλα τα οινοποιεία).');}
+    else{alert('Αποτυχία αλλαγής: '+error.message);}
+    return;
+  }
   await loadAccessCodes();
   showModal('settingsModalContainer',settingsModalHTML());
 }
@@ -404,10 +426,11 @@ function settingsModalHTML(){
     <button class="btn" style="margin-top:10px;" onclick="addCustomVariety()">+ Προσθήκη ποικιλίας</button>
 
     <div class="sec-lbl">Κωδικοί πρόσβασης προσωπικού</div>
-    <div style="font-size:12px;color:#888;margin-bottom:10px;">Δημιούργησε έναν κωδικό για κάθε άτομο που χρειάζεται πρόσβαση χωρίς λογαριασμό Supabase (π.χ. εργάτης αμπελιού, επόπτης). Ο κωδικός μπαίνει στη σελίδα access.html.</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">Δημιούργησε έναν κωδικό για κάθε άτομο που χρειάζεται πρόσβαση χωρίς λογαριασμό Supabase (π.χ. εργάτης αμπελιού, επόπτης). Ο κωδικός μπαίνει στη σελίδα access.html. Μπορείς να ορίσεις εσύ τον κωδικό ή να αφήσεις το πεδίο κενό για αυτόματη δημιουργία — και να αλλάξεις οποιονδήποτε κωδικό αργότερα με "Αλλαγή".</div>
     <div id="accessCodesList" style="margin-bottom:12px;">${accessCodesListHTML()}</div>
     <div class="g3" style="align-items:end;">
-      <div class="field" style="grid-column:span 2;"><span class="flbl">Όνομα ατόμου</span><input class="finp" id="acPersonName" placeholder="π.χ. Γιώργος Παύλου"></div>
+      <div class="field"><span class="flbl">Όνομα ατόμου</span><input class="finp" id="acPersonName" placeholder="π.χ. Γιώργος Παύλου"></div>
+      <div class="field"><span class="flbl">Κωδικός (προαιρετικό)</span><input class="finp" id="acCustomCode" placeholder="π.χ. GP2026" maxlength="20" style="text-transform:uppercase;"></div>
       <button class="btn" onclick="generateAccessCode()">+ Νέος κωδικός</button>
     </div>
 
