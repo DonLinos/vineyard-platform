@@ -166,9 +166,9 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
       <div class="field"><span class="flbl">Inspector</span><input class="finp" id="hInspector" placeholder="Full name"></div>
     </div>
     <div class="g4">
-      <div class="field"><span class="flbl">Region</span><input class="finp" id="hRegion" placeholder="e.g. Marathasa Valley, CY"></div>
+      <div class="field"><span class="flbl">Region</span><input class="finp" id="hRegion" placeholder="e.g. OwnRoot Valley, CY"></div>
       <div class="field"><span class="flbl">Weather</span><input class="finp" id="hWeather" placeholder="e.g. Sunny 22°C"></div>
-      <div class="field"><span class="flbl">Report No.</span><input class="finp" id="hReportNo" placeholder="MVR-2026-001"></div>
+      <div class="field"><span class="flbl">Report No.</span><input class="finp" id="hReportNo" placeholder="e.g. VVR-2026-001"></div>
       <div class="field"><span class="flbl">Next visit</span><input class="finp" id="hNextVisit" type="date"></div>
     </div>
   </div>
@@ -181,16 +181,6 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;backgrou
   <div class="sec-lbl">AI Scanner</div>
   <div class="card">
     <div style="font-size:12px;color:#2d6a4f;">✓ Ο σαρωτής BBCH λειτουργεί μέσω ασφαλούς cloud function — δεν χρειάζεται πλέον API key εδώ.</div>
-  </div>
-
-  <div class="sec-lbl">Κωδικοί πρόσβασης προσωπικού</div>
-  <div class="card">
-    <div style="font-size:12px;color:#888;margin-bottom:10px;">Δημιούργησε έναν κωδικό για κάθε άτομο που χρειάζεται πρόσβαση χωρίς λογαριασμό Supabase (π.χ. εργάτης αμπελιού, επόπτης). Ο κωδικός μπαίνει στη σελίδα access.html.</div>
-    <div class="g3" style="margin-bottom:10px;align-items:end;">
-      <div class="field" style="grid-column:span 2;"><span class="flbl">Όνομα ατόμου</span><input class="finp" id="acPersonName" placeholder="π.χ. Γιώργος Παύλου"></div>
-      <button class="btn" onclick="generateAccessCode()">+ Νέος κωδικός</button>
-    </div>
-    <div id="accessCodesList" style="font-size:13px;"></div>
   </div>
 
   <div class="sec-lbl">Areas</div>
@@ -324,18 +314,25 @@ function makeAccessCode(){
   return code;
 }
 
+// Οι κωδικοί πρόσβασης δεν εμφανίζονται πλέον στην κύρια σελίδα (ήταν πολύ "μπροστά" για κάτι
+// που χρησιμοποιείται σπάνια) — ζουν τώρα μέσα στις Ρυθμίσεις (⚙️), σαν τις ποικιλίες.
+let accessCodes=[]; // [{id, person_name, code, active}]
+
 async function loadAccessCodes(){
-  const box=document.getElementById('accessCodesList');
-  if(!box)return;
-  if(!supabaseClient||!WINERY_ID){box.innerHTML='<div style="color:#888;">Χρειάζεται σύνδεση με το Supabase.</div>';return;}
+  if(!supabaseClient||!WINERY_ID){accessCodes=[];return;}
   const{data,error}=await supabaseClient.from('access_codes').select('*').eq('winery_id',WINERY_ID).order('person_name');
-  if(error){console.warn('loadAccessCodes failed',error);box.innerHTML='<div style="color:#c0392b;">Αποτυχία φόρτωσης κωδικών ('+error.message+').</div>';return;}
-  if(!data||!data.length){box.innerHTML='<div style="color:#888;">Δεν υπάρχουν ακόμα κωδικοί για αυτό το οινοποιείο.</div>';return;}
-  box.innerHTML=data.map(r=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;">
+  if(error){console.warn('loadAccessCodes failed',error);accessCodes=[];return;}
+  accessCodes=data||[];
+}
+
+function accessCodesListHTML(){
+  if(!accessCodes.length)return'<div style="font-size:12px;color:#888;">Δεν υπάρχουν ακόμα κωδικοί για αυτό το οινοποιείο.</div>';
+  return accessCodes.map(r=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eee;font-size:13px;">
       <div style="flex:1;">${r.person_name}${r.active?'':' <span style="color:#c0392b;">(ανενεργός)</span>'}</div>
-      <div style="font-family:monospace;font-size:15px;font-weight:700;letter-spacing:.06em;">${r.code}</div>
+      <div style="font-family:monospace;font-size:14px;font-weight:700;letter-spacing:.06em;">${r.code}</div>
       <button class="btn btn-sm" onclick="toggleAccessCode('${r.id}',${!r.active})">${r.active?'Απενεργοποίηση':'Ενεργοποίηση'}</button>
+      <button class="btn btn-sm btn-danger" onclick="deleteAccessCode('${r.id}')">Διαγραφή</button>
     </div>`).join('');
 }
 
@@ -347,14 +344,23 @@ async function generateAccessCode(){
   const code=makeAccessCode();
   const{error}=await supabaseClient.from('access_codes').insert({winery_id:WINERY_ID,person_name:name,code,active:true});
   if(error){alert('Αποτυχία δημιουργίας κωδικού: '+error.message);return;}
-  nameInp.value='';
-  loadAccessCodes();
+  await loadAccessCodes();
+  showModal('settingsModalContainer',settingsModalHTML());
 }
 
 async function toggleAccessCode(id,active){
   const{error}=await supabaseClient.from('access_codes').update({active}).eq('id',id);
   if(error){alert('Αποτυχία ενημέρωσης: '+error.message);return;}
-  loadAccessCodes();
+  await loadAccessCodes();
+  showModal('settingsModalContainer',settingsModalHTML());
+}
+
+async function deleteAccessCode(id){
+  if(!confirm('Οριστική διαγραφή αυτού του κωδικού πρόσβασης; Το άτομο που τον χρησιμοποιεί δεν θα μπορεί πλέον να συνδεθεί.'))return;
+  const{error}=await supabaseClient.from('access_codes').delete().eq('id',id);
+  if(error){alert('Αποτυχία διαγραφής: '+error.message);return;}
+  await loadAccessCodes();
+  showModal('settingsModalContainer',settingsModalHTML());
 }
 
 // ─── ΡΥΘΜΙΣΕΙΣ (⚙️) — μόνο για τον admin. Προς το παρόν: προσθήκη νέων ποικιλιών στη λίστα
@@ -395,6 +401,15 @@ function settingsModalHTML(){
       <div class="field" style="grid-column:span 2;"><span class="flbl">Όνομα ποικιλίας</span><input class="finp" id="cvName" placeholder="π.χ. Vasilissa"></div>
     </div>
     <button class="btn" style="margin-top:10px;" onclick="addCustomVariety()">+ Προσθήκη ποικιλίας</button>
+
+    <div class="sec-lbl">Κωδικοί πρόσβασης προσωπικού</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">Δημιούργησε έναν κωδικό για κάθε άτομο που χρειάζεται πρόσβαση χωρίς λογαριασμό Supabase (π.χ. εργάτης αμπελιού, επόπτης). Ο κωδικός μπαίνει στη σελίδα access.html.</div>
+    <div id="accessCodesList" style="margin-bottom:12px;">${accessCodesListHTML()}</div>
+    <div class="g3" style="align-items:end;">
+      <div class="field" style="grid-column:span 2;"><span class="flbl">Όνομα ατόμου</span><input class="finp" id="acPersonName" placeholder="π.χ. Γιώργος Παύλου"></div>
+      <button class="btn" onclick="generateAccessCode()">+ Νέος κωδικός</button>
+    </div>
+
     <div style="margin-top:16px;text-align:right;"><button class="btn" onclick="closeModal('settingsModalContainer')">Κλείσιμο</button></div>
   </div></div>`;
 }
@@ -752,7 +767,7 @@ async function loadState(){
     }catch(e){}
   }
   loadApiKey();
-  loadAccessCodes();
+  await loadAccessCodes();
   await loadCustomVarieties();
   renderAreas();
 }
