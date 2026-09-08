@@ -9,6 +9,20 @@
 const SUPABASE_URL = 'https://xxyrareqzgvsaolhftbh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_x46jDuVbrSELrlekl5pQ7A_4i4xuaNE';
 
+// Edge Function που στέλνει email στον Απόστολο όταν κάποιος συνδεθεί ΠΡΩΤΗ φορά με κωδικό
+// πρόσβασης (βλ. supabase/functions/notify-first-login). Καλείται "fire and forget" — αν
+// αποτύχει (π.χ. δεν έχει γίνει ακόμα deploy), δεν πειράζει τη σύνδεση του χρήστη.
+function notifyFirstLoginIfNeeded(code, isFirstUse) {
+  if (!isFirstUse) return;
+  try {
+    fetch(SUPABASE_URL + '/functions/v1/notify-first-login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_KEY },
+      body: JSON.stringify({ code })
+    }).catch(() => {});
+  } catch (e) {}
+}
+
 // Το όνομα του σύμβουλου εμφανίζεται στο dashboard κάθε οινοποιείου (είναι ο ίδιος σε όλα,
 // σε αντίθεση με τον επόπτη που είναι διαφορετικός ανά οινοποιείο — αυτός ρυθμίζεται από
 // τις Ρυθμίσεις ⚙️ στο admin.html). Άλλαξέ το εδώ αν χρειαστεί ποτέ.

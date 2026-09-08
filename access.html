@@ -101,6 +101,8 @@
       personName: data.person_name
     }));
 
+    notifyFirstLoginIfNeeded(code, data.is_first_use);
+
     const sep = RETURN_TO.includes('?') ? '&' : '?';
     window.location.href = RETURN_TO + sep + 'winery_id=' + encodeURIComponent(data.winery_id);
   }
