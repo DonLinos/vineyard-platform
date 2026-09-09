@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Σύνδεση — Vineyard Field Reports</title>
 <link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d2620">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root {
     --ink: #f2ede1;
@@ -218,18 +221,21 @@
 
     <div id="code-view">
       <div class="card">
+        <form id="code-form" autocomplete="off" onsubmit="return false;">
         <div class="field">
           <label for="code">Ο προσωπικός σου κωδικός</label>
-          <input type="text" class="code-input" id="code" autocomplete="off" placeholder="π.χ. VK4821" maxlength="20">
+          <input type="text" class="code-input" id="code" name="vitis-access-code" autocomplete="one-time-code" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="π.χ. VK4821" maxlength="20">
         </div>
-        <button class="primary" id="code-btn">Είσοδος</button>
+        <button class="primary" type="button" id="code-btn">Είσοδος</button>
         <div class="msg" id="code-msg"></div>
+        </form>
       </div>
       <p class="foot">Δεν έχεις κωδικό; Απευθύνσου στον γεωπόνο σου.</p>
     </div>
 
     <div id="email-view" style="display:none;">
       <div class="card">
+        <form id="email-form" onsubmit="return false;">
         <div class="field">
           <label for="email">Email</label>
           <input type="email" id="email" autocomplete="email" placeholder="name@example.com">
@@ -242,9 +248,10 @@
           <label for="signup-note">Ποιο οινοποίειο αφορά; (προαιρετικό)</label>
           <input type="text" id="signup-note" placeholder="π.χ. Βασιλικόν Winery">
         </div>
-        <button class="primary" id="login-btn">Σύνδεση</button>
-        <button class="primary" id="signup-btn" style="display:none;background:transparent;border:1px solid var(--gold-dim);color:var(--gold);">Δημιουργία λογαριασμού</button>
+        <button class="primary" type="button" id="login-btn">Σύνδεση</button>
+        <button class="primary" type="button" id="signup-btn" style="display:none;background:transparent;border:1px solid var(--gold-dim);color:var(--gold);">Δημιουργία λογαριασμού</button>
         <div class="msg" id="login-msg"></div>
+        </form>
       </div>
       <p class="foot" id="signup-toggle-foot">Δεν έχεις λογαριασμό; <a id="show-signup">Κάνε εγγραφή</a></p>
     </div>

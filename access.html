@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Είσοδος — Vineyard Reports</title>
 <link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d2620">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root {
     --ink: #f2ede1; --ink-dim: #b9c2b3; --ink-faint: #7c8a78;
@@ -50,12 +53,14 @@
   <h1>Είσοδος με κωδικό</h1>
   <div class="hero" id="hero"><div class="hero-label"><span class="ic" id="heroIcon">🍇</span><span id="heroLabel">…</span></div></div>
   <div class="card">
+    <form id="code-form" autocomplete="off" onsubmit="return false;">
     <div class="field">
       <label for="code">Ο προσωπικός σου κωδικός</label>
-      <input type="text" id="code" autocomplete="off" placeholder="π.χ. VK4821" maxlength="20">
+      <input type="text" id="code" name="vitis-access-code" autocomplete="one-time-code" autocorrect="off" autocapitalize="characters" spellcheck="false" placeholder="π.χ. VK4821" maxlength="20">
     </div>
-    <button class="primary" id="go-btn">Είσοδος</button>
+    <button class="primary" type="button" id="go-btn">Είσοδος</button>
     <div class="msg" id="msg"></div>
+    </form>
   </div>
   <p class="foot">Δεν έχεις κωδικό; Απευθύνσου στον γεωπόνο σου.</p>
 </div>
