@@ -54,6 +54,45 @@
   .vtab:hover{border-color:var(--gold-dim);}
   .vtab.on{background:var(--gold);color:#241a08;border-color:var(--gold);font-weight:600;}
   input[type="number"].baume-input{width:100px;}
+
+  /* ─── Σύνοψη κιλών/blocks ─── */
+  .stats-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:18px;}
+  .stats-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;text-align:center;}
+  .stat-val{font-size:20px;font-weight:700;}
+  .stat-val.done{color:var(--green);}
+  .stat-val.sched{color:var(--orange);}
+  .stat-val.remain{color:var(--ink-dim);}
+  .stat-sub{font-size:11px;color:var(--ink-dim);margin-top:2px;min-height:14px;}
+  .stat-lbl{font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.03em;margin-top:4px;}
+
+  /* ─── Μεγάλο ημερολόγιο τρύγου ─── */
+  .cal-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:20px;}
+  .cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .cal-nav button{background:transparent;border:1px solid var(--line);color:var(--ink-dim);padding:5px 10px;border-radius:6px;font-size:13px;cursor:pointer;}
+  .cal-nav button:hover{border-color:var(--gold-dim);color:var(--ink);}
+  .cal-month-lbl{font-size:14px;font-weight:600;}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
+  .cal-dow{font-size:10px;text-align:center;color:var(--ink-faint);padding-bottom:4px;text-transform:uppercase;}
+  .cal-day{aspect-ratio:1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;color:var(--ink-dim);background:#1c251f;}
+  .cal-day.empty{visibility:hidden;}
+  .cal-day.today{box-shadow:inset 0 0 0 1.5px var(--gold);}
+  .cal-day.has-entries{cursor:pointer;}
+  .cal-day.has-sched{background:rgba(217,160,87,.22);}
+  .cal-day.has-done{background:rgba(79,158,92,.22);}
+  .cal-day.has-both{background:linear-gradient(135deg, rgba(217,160,87,.28) 50%, rgba(79,158,92,.28) 50%);}
+  .cal-day.selected{box-shadow:inset 0 0 0 2px var(--ink);}
+  .cal-day-num{font-weight:600;}
+  .cal-day-count{font-size:9px;color:var(--ink-faint);margin-top:1px;}
+  .cal-day.has-sched .cal-day-count,.cal-day.has-done .cal-day-count,.cal-day.has-both .cal-day-count{color:var(--ink);}
+  .cal-legend{display:flex;gap:14px;font-size:11px;color:var(--ink-faint);margin-top:12px;flex-wrap:wrap;}
+  .cal-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .cal-legend-dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
+  .cal-day-details{margin-top:16px;border-top:1px solid var(--line);padding-top:12px;}
+  .cal-day-details-title{font-size:13px;font-weight:600;margin-bottom:8px;}
+  .cal-detail-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .cal-detail-row:last-child{border-bottom:none;}
+  .cal-detail-name{font-weight:600;}
+  .cal-detail-meta{font-size:11px;color:var(--ink-dim);}
 </style>
 </head>
 <body>
@@ -82,6 +121,14 @@ let scheduleByBlock={};  // block_id -> schedule row (latest / open one)
 let currentPersonName='';
 let isAdmin=false; // true μόνο για πραγματικό Supabase login (σύμβουλος) — όχι για access code
 let selectedVarietyTab='__all__'; // καρτέλα ποικιλίας που φιλτράρει Έτοιμα/Προγραμματισμένα/Ολοκληρωμένα
+
+let allScheduleRows=[]; // ΟΛΕΣ οι γραμμές harvest_schedule (όχι deduped ανά block) — για το ημερολόγιο
+const MONTH_NAMES_EL=['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
+const DOW_EL=['Δε','Τρ','Τε','Πε','Πα','Σα','Κυ'];
+const _today=new Date();
+let calYear=_today.getFullYear();
+let calMonth=_today.getMonth(); // 0-indexed
+let selectedCalDay=null;
 
 function fmtDate(d){
   if(!d)return'—';
@@ -132,6 +179,7 @@ async function loadAll(){
   });
 
   const{data:schedRows}=await supa.from('harvest_schedule').select('*').in('block_id',blockIds).order('scheduled_date',{ascending:true});
+  allScheduleRows=schedRows||[];
   scheduleByBlock={};
   (schedRows||[]).forEach(s=>{
     // κρατάμε το πιο πρόσφατο ανοιχτό (χωρίς actual_kg) ή αλλιώς το τελευταίο ολοκληρωμένο
@@ -174,6 +222,120 @@ function varietyTabsHTML(){
 }
 function setVarietyTab(v){selectedVarietyTab=v;render();}
 
+// ─── Σύνοψη κιλών/blocks (σέβεται την επιλεγμένη καρτέλα ποικιλίας) ───
+function computeStats(visibleBlocks){
+  let doneCount=0,doneKg=0,schedCount=0,schedKg=0;
+  visibleBlocks.forEach(b=>{
+    const s=scheduleByBlock[b.id];
+    if(s&&s.actual_kg!==null&&s.actual_kg!==undefined){doneCount++;doneKg+=(parseFloat(s.actual_kg)||0);}
+    else if(s){schedCount++;schedKg+=(parseFloat(s.estimated_kg)||0);}
+  });
+  const remainCount=Math.max(0,visibleBlocks.length-doneCount-schedCount);
+  return{doneCount,doneKg,schedCount,schedKg,remainCount};
+}
+
+function statsHTML(st){
+  const round1=n=>Math.round(n*10)/10;
+  return `<div class="stats-card">
+    <div class="stats-row">
+      <div><div class="stat-val done">${st.doneCount}</div><div class="stat-sub">${st.doneKg?round1(st.doneKg)+' kg':'—'}</div><div class="stat-lbl">Τρυγήθηκαν</div></div>
+      <div><div class="stat-val sched">${st.schedCount}</div><div class="stat-sub">${st.schedKg?round1(st.schedKg)+' kg (πρόβλεψη)':'—'}</div><div class="stat-lbl">Προγραμματισμένα</div></div>
+      <div><div class="stat-val remain">${st.remainCount}</div><div class="stat-sub">&nbsp;</div><div class="stat-lbl">Απομένουν</div></div>
+    </div>
+  </div>`;
+}
+
+// ─── Μεγάλο ημερολόγιο: ΟΛΕΣ οι φάσεις τρύγου (allScheduleRows) ομαδοποιημένες ανά ημερομηνία,
+// φιλτραρισμένες στα blocks που είναι ορατά με την τρέχουσα καρτέλα ποικιλίας ───
+function buildDatesMap(visibleBlocks){
+  const visibleIds=new Set(visibleBlocks.map(b=>b.id));
+  const blockMeta={};
+  blocksData.forEach(b=>{blockMeta[b.id]=b;});
+  const datesMap={};
+  allScheduleRows.forEach(s=>{
+    if(!visibleIds.has(s.block_id))return;
+    if(!s.scheduled_date)return;
+    const b=blockMeta[s.block_id];
+    if(!b)return;
+    const done=(s.actual_kg!==null&&s.actual_kg!==undefined);
+    if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,entries:[]};
+    datesMap[s.scheduled_date][done?'hasDone':'hasSched']=true;
+    datesMap[s.scheduled_date].entries.push({
+      name:b.blockCode+(b.vineyardCode?' · '+b.vineyardCode:''),
+      variety:b.variety,
+      done,
+      kg:done?s.actual_kg:s.estimated_kg,
+      baume:done?s.actual_baume:null
+    });
+  });
+  return datesMap;
+}
+
+function calendarHTML(datesMap){
+  const first=new Date(calYear,calMonth,1);
+  const startDow=(first.getDay()+6)%7; // 0=Δευτέρα
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const todayStr=new Date().toISOString().slice(0,10);
+  let cells=DOW_EL.map(d=>`<div class="cal-dow">${d}</div>`).join('');
+  for(let i=0;i<startDow;i++)cells+='<div class="cal-day empty"></div>';
+  for(let d=1;d<=daysInMonth;d++){
+    const dateStr=calYear+'-'+String(calMonth+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+    const info=datesMap[dateStr];
+    let cls='cal-day';
+    if(dateStr===todayStr)cls+=' today';
+    if(dateStr===selectedCalDay)cls+=' selected';
+    let count=0;
+    if(info){
+      count=info.entries.length;
+      cls+=' has-entries';
+      if(info.hasSched&&info.hasDone)cls+=' has-both';
+      else if(info.hasDone)cls+=' has-done';
+      else if(info.hasSched)cls+=' has-sched';
+    }
+    cells+=`<div class="${cls}"${info?` onclick="selectCalDay('${dateStr}')"`:''}><span class="cal-day-num">${d}</span>${count?`<span class="cal-day-count">${count}</span>`:''}</div>`;
+  }
+  const detailsHTML=(selectedCalDay&&datesMap[selectedCalDay])?dayDetailsHTML(selectedCalDay,datesMap[selectedCalDay]):'';
+  return `<div class="cal-card">
+    <div class="cal-nav">
+      <button onclick="navMonth(-1)">‹</button>
+      <span class="cal-month-lbl">${MONTH_NAMES_EL[calMonth]} ${calYear}</span>
+      <button onclick="navMonth(1)">›</button>
+    </div>
+    <div class="cal-grid">${cells}</div>
+    <div class="cal-legend">
+      <span><i class="cal-legend-dot" style="background:var(--orange);"></i>Προγραμματισμένο</span>
+      <span><i class="cal-legend-dot" style="background:var(--green);"></i>Τρυγήθηκε</span>
+    </div>
+    ${detailsHTML}
+  </div>`;
+}
+
+function dayDetailsHTML(dateStr,info){
+  return `<div class="cal-day-details">
+    <div class="cal-day-details-title">📍 ${fmtDate(dateStr)}</div>
+    ${info.entries.map(e=>`<div class="cal-detail-row">
+      <div><div class="cal-detail-name">${e.name}</div><div class="cal-detail-meta">${e.variety||''}</div></div>
+      <div style="text-align:right;">
+        <span class="badge ${e.done?'done':'scheduled'}">${e.done?'Τρυγήθηκε':'Προγραμματισμένο'}</span>
+        <div class="cal-detail-meta">${e.kg!==null&&e.kg!==undefined?e.kg+' kg':''}${e.baume!==null&&e.baume!==undefined?' · '+e.baume+'°':''}</div>
+      </div>
+    </div>`).join('')}
+  </div>`;
+}
+
+function navMonth(delta){
+  calMonth+=delta;
+  if(calMonth<0){calMonth=11;calYear--;}
+  else if(calMonth>11){calMonth=0;calYear++;}
+  selectedCalDay=null;
+  render();
+}
+
+function selectCalDay(d){
+  selectedCalDay=(selectedCalDay===d)?null:d;
+  render();
+}
+
 function render(){
   const el=document.getElementById('content');
   const tabsHTML=varietyTabsHTML();
@@ -193,6 +355,9 @@ function render(){
   });
 
   let html=tabsHTML;
+
+  html+=statsHTML(computeStats(visibleBlocks));
+  html+=calendarHTML(buildDatesMap(visibleBlocks));
 
   html+='<h2 class="section">🍇 Έτοιμα για προγραμματισμό ('+ready.length+')</h2>';
   html+=ready.length?ready.map(b=>readyCard(b)).join(''):'<div class="no-data">Κανένα block πάνω από το όριο Baumé αυτή τη στιγμή.</div>';

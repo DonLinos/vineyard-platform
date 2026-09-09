@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Προγραμματισμός Τρύγου</title>
 <link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1d2620">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <style>
   :root{
     --ink:#1a1a1a; --ink-dim:#666; --ink-faint:#999;
@@ -55,11 +58,30 @@
   .section-toggle{display:flex;gap:6px;margin-bottom:10px;font-family:-apple-system,sans-serif;}
   .section-toggle-btn{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-dim);}
   .section-toggle-btn.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  /* ─── Προγραμματισμός τρύγου μέσα στον πίνακα: κλικ στον παραγωγό/block ─── */
+  .block-cell{cursor:pointer;}
+  .block-cell:hover{text-decoration:underline;}
+  tr.row-scheduled td,tr.row-scheduled td.forecast-col,tr.row-scheduled td.actual-col,tr.row-scheduled td:first-child{background:#fbeed9;}
+  tr.row-harvested td,tr.row-harvested td.forecast-col,tr.row-harvested td.actual-col,tr.row-harvested td:first-child{background:#e3f2e6;}
+  .sched-modal{max-width:380px;}
+  .sched-meta{font-size:12px;color:var(--ink-dim);margin-bottom:14px;font-family:-apple-system,sans-serif;}
+  .sched-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;font-family:-apple-system,sans-serif;}
+  .sched-row label{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;}
+  .sched-row input{border:1px solid var(--line);border-radius:6px;padding:8px 10px;font-size:14px;font-family:-apple-system,sans-serif;}
+  .sched-hint{font-size:12px;color:var(--ink-faint);margin-bottom:12px;font-family:-apple-system,sans-serif;}
+  .sched-actions{display:flex;gap:8px;margin-top:6px;}
+  .sched-actions button{background:var(--gold);border:1px solid var(--gold);border-radius:16px;padding:7px 16px;font-size:13px;cursor:pointer;color:#fff;font-family:-apple-system,sans-serif;}
+  .sched-actions button.ghost{background:transparent;color:var(--ink-dim);border-color:var(--line);}
+  .badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;font-family:-apple-system,sans-serif;display:inline-block;}
+  .badge.scheduled{background:#fbeed9;color:#8a6416;}
+  .badge.done{background:#e3f2e6;color:#2f6a3a;}
 </style>
 </head>
 <body>
 
 <div id="chartModalContainer"></div>
+<div id="scheduleModalContainer"></div>
 
 <div class="topbar">
   <div class="topbar-title" id="topbarTitle">Προγραμματισμός Τρύγου</div>
@@ -86,6 +108,18 @@ function fmtShortDate(d){
   const dt=new Date(d+'T00:00:00');
   return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0');
 }
+function fmtFullDate(d){
+  if(!d)return'—';
+  const dt=new Date(d+'T00:00:00');
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+}
+
+// ─── Προγραμματισμός τρύγου (κλικ σε γραμμή) — γράφει στον ίδιο πίνακα harvest_schedule
+// που χρησιμοποιεί το harvest-schedule.html, ώστε οι δύο σελίδες να δείχνουν πάντα την ίδια κατάσταση.
+let scheduleByBlock={};        // block_id -> «τρέχον» harvest_schedule row (ίδια λογική με harvest-schedule.html)
+let rowBlockIndex={};          // { variety: { rowLabel: block_id } } — για να ξέρουμε ΠΟΙΟ block αντιστοιχεί σε κάθε γραμμή του πίνακα
+let currentPersonName='';
+let isAdmin=false;             // true μόνο για πραγματικό Supabase login (σύμβουλος) — όχι για access code
 
 let allVarietyData={}; // unfiltered, all years — { varietyName: { blockName: { date: {...} } } }
 let varietyData={};    // filtered to selectedYear — same shape, used by render/chart
@@ -144,11 +178,19 @@ async function loadData(){
   if(!WINERY_ID){document.getElementById('content').innerHTML='<div class="no-data">Λείπει winery_id.</div>';return;}
   const access=await requireAccess(supa,WINERY_ID);
   if(!access)return;
+  currentPersonName=access.personName;
+  isAdmin=access.method==='auth';
 
   const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
   document.getElementById('topbarTitle').textContent=(winery?winery.name:'')+' — Τρύγος';
   document.getElementById('topbarSub').textContent='Προγραμματισμός Τρύγου';
 
+  await loadAndRender();
+}
+
+// Ξαναφορτώνει όλα τα δεδομένα (πίνακες + πρόγραμμα τρύγου) χωρίς να ξανακάνει έλεγχο πρόσβασης —
+// καλείται και στην αρχική φόρτωση και μετά από κάθε ενέργεια προγραμματισμού/καταχώρησης τρύγου.
+async function loadAndRender(){
   const{data:visitsRows}=await supa.from('visits').select('id,visit_date').eq('winery_id',WINERY_ID);
   const visitDateById={};
   (visitsRows||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
@@ -189,6 +231,17 @@ async function loadData(){
     return vCode;
   }
 
+  // { variety: { rowLabel: block_id } } — ώστε το κλικ πάνω σε μια γραμμή του πίνακα να ξέρει ΠΟΙΟ
+  // block να προγραμματίσει (η γραμμή δείχνει τον αμπελώνα/παραγωγό, όχι το block id).
+  rowBlockIndex={};
+  blocksRows.forEach(b=>{
+    parseVarietyNames(b.variety).forEach(variety=>{
+      const label=rowLabelFor(b,variety);
+      if(!rowBlockIndex[variety])rowBlockIndex[variety]={};
+      rowBlockIndex[variety][label]=b.id;
+    });
+  });
+
   let estRows=[];
   if(blockIds.length){
     const{data,error}=await supa.from('estimation_observations').select('*').in('block_id',blockIds);
@@ -209,6 +262,28 @@ async function loadData(){
     if(res.error)console.error('harvest_schedule load failed:',res.error);
     else actualRows=res.data||[];
   }
+
+  // Όλες οι γραμμές harvest_schedule (ανοιχτές + ολοκληρωμένες), για να δείχνει ο πίνακας ποιες
+  // γραμμές είναι προγραμματισμένες (κίτρινο) ή τρυγημένες (πράσινο) και να μπορεί να γίνει edit.
+  let allSchedRows=[];
+  if(blockIds.length){
+    let res2=await supa.from('harvest_schedule').select('id,block_id,scheduled_date,estimated_kg,actual_kg,actual_baume,created_by,updated_by').in('block_id',blockIds).order('scheduled_date',{ascending:true});
+    if(res2.error){
+      console.warn('Το select με actual_baume απέτυχε — δοκιμή χωρίς αυτήν:',res2.error);
+      res2=await supa.from('harvest_schedule').select('id,block_id,scheduled_date,estimated_kg,actual_kg,created_by,updated_by').in('block_id',blockIds).order('scheduled_date',{ascending:true});
+    }
+    if(res2.error)console.error('harvest_schedule (όλες οι γραμμές) load failed:',res2.error);
+    else allSchedRows=res2.data||[];
+  }
+  scheduleByBlock={};
+  allSchedRows.forEach(s=>{
+    const prev=scheduleByBlock[s.block_id];
+    if(!prev){scheduleByBlock[s.block_id]=s;return;}
+    const prevOpen=(prev.actual_kg===null||prev.actual_kg===undefined);
+    const curOpen=(s.actual_kg===null||s.actual_kg===undefined);
+    if(curOpen&&!prevOpen)scheduleByBlock[s.block_id]=s;
+    else if(curOpen===prevOpen&&s.scheduled_date>prev.scheduled_date)scheduleByBlock[s.block_id]=s;
+  });
 
   allVarietyData={};
   allActualData={};
@@ -270,10 +345,11 @@ const CHEM_UNITS={baume:'°', tartaricAcid:'g/L', ph:''};
 const AGRO_LABELS={berryWeight:'Βάρος ράγας', juiceYield:'Απόδοση χυμού'};
 const AGRO_UNITS={berryWeight:'g', juiceYield:'mg/g'};
 
-function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, showHarvestCol, actualBaumeMap){
+function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, showHarvestCol, actualBaumeMap, variety){
   blockMap=blockMap||{};
   actualMap=actualMap||{};
   actualBaumeMap=actualBaumeMap||{};
+  const rowIndex=rowBlockIndex[variety]||{};
   // Ένωση: ένα block μπορεί να υπάρχει μόνο στο actualMap (τρυγήθηκε χωρίς ποτέ να έχει δειγματοληψία)
   // ή μόνο στο blockMap (έχει δειγματοληψίες αλλά δεν τρυγήθηκε ακόμα) — πρέπει να φαίνεται σε κάθε περίπτωση.
   const blocks=[...new Set([...Object.keys(blockMap),...Object.keys(actualMap)])].sort();
@@ -341,8 +417,16 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, 
   return `<div class="matrix-scroll"><table class="matrix">
     <thead><tr><th>Block</th><th class="forecast-col">Πρόβλεψη (Kg)</th><th class="forecast-col actual-col">Πραγματική ποσότητα (Kg)</th>${dates.map(d=>`<th>${fmtShortDate(d)}</th>`).join('')}${showHarvestCol?'<th class="forecast-col">Τρύγος (ημ/νία · Baumé)</th>':''}</tr></thead>
     <tbody>
-      ${blocks.map(b=>`<tr>
-        <td>${b}</td>
+      ${blocks.map(b=>{
+        const blockId=rowIndex[b];
+        const sched=blockId?scheduleByBlock[blockId]:null;
+        let rowCls='';
+        if(sched)rowCls=(sched.actual_kg!==null&&sched.actual_kg!==undefined)?' row-harvested':' row-scheduled';
+        const escVariety=(variety||'').replace(/'/g,"\\'");
+        const escLabel=b.replace(/'/g,"\\'");
+        const clickAttr=blockId?` onclick="openScheduleModal('${escVariety}','${escLabel}')" title="Κλικ για προγραμματισμό/καταχώρηση τρύγου"`:'';
+        return `<tr class="${rowCls.trim()}">
+        <td class="block-cell"${clickAttr}>${b}</td>
         <td class="forecast-col">${forecastByBlock[b]!==undefined?forecastByBlock[b]:'<span class="cell-empty">—</span>'}</td>
         <td class="forecast-col actual-col">${actualByBlock[b]!==undefined?actualByBlock[b]:'<span class="cell-empty">—</span>'}</td>
         ${dates.map(d=>{
@@ -350,12 +434,12 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, 
           if(!rec||rec[metric]===null||rec[metric]===undefined)return`<td><span class="cell-empty">—</span></td>`;
           const otherFields=allFields.filter(f=>f!==metric);
           const detailHTML=otherFields.map(f=>rec[f]!==null&&rec[f]!==undefined?`${labels[f]}: ${rec[f]}${units[f]}`:null).filter(Boolean).join('<br>');
-          return `<td><div class="cell-val" onclick="toggleCell(this.parentElement)">${rec[metric]}${units[metric]}
+          return `<td><div class="cell-val" onclick="event.stopPropagation();toggleCell(this.parentElement)">${rec[metric]}${units[metric]}
             <div class="cell-detail" style="display:none;">${detailHTML||'—'}</div>
           </div></td>`;
         }).join('')}
         ${showHarvestCol?`<td class="forecast-col">${(harvestInfoByBlock[b]||[]).length?harvestInfoByBlock[b].map(e=>`${fmtShortDate(e.date)}: ${e.baume!==null&&e.baume!==undefined?e.baume+'°'+(e.approx?' *':''):'<span class="cell-empty">—</span>'}`).join('<br>'):'<span class="cell-empty">—</span>'}</td>`:''}
-      </tr>`).join('')}
+      </tr>`;}).join('')}
       <tr>
         <td style="font-weight:700;border-top:2px solid var(--ink);">Σύνολο</td>
         <td class="forecast-col" style="font-weight:700;border-top:2px solid var(--ink);">${forecastTotal?round1(forecastTotal):'<span class="cell-empty">—</span>'}</td>
@@ -400,14 +484,14 @@ function render(){
           <button class="btn-chart" onclick="openMetricChart('${variety.replace(/'/g,"\\'")}','${chemMetric}')">📈 Γράφημα ${CHEM_LABELS[chemMetric]}</button>
         </div>
       </div>
-      ${buildMatrixHTML(blockMap, chemMetric, ['baume','tartaricAcid','ph'], CHEM_LABELS, CHEM_UNITS, actualMap, true, actualBaumeMap)}`;
+      ${buildMatrixHTML(blockMap, chemMetric, ['baume','tartaricAcid','ph'], CHEM_LABELS, CHEM_UNITS, actualMap, true, actualBaumeMap, variety)}`;
     const agroSection=`<div class="section-hdr">
         <span class="section-title">Αγρονομικές αναλύσεις</span>
         <div class="toggle-row">
           ${['berryWeight','juiceYield'].map(m=>`<button class="toggle-btn${agroMetric===m?' on':''}" onclick="setAgroMetric('${m}')">${AGRO_LABELS[m]}</button>`).join('')}
         </div>
       </div>
-      ${buildMatrixHTML(blockMap, agroMetric, ['berryWeight','juiceYield'], AGRO_LABELS, AGRO_UNITS, actualMap)}`;
+      ${buildMatrixHTML(blockMap, agroMetric, ['berryWeight','juiceYield'], AGRO_LABELS, AGRO_UNITS, actualMap, false, null, variety)}`;
     return `<div class="variety-block">
       <div class="variety-title">${variety}</div>
       <div class="section-toggle">
@@ -419,6 +503,114 @@ function render(){
   }).join('');
 
   document.getElementById('content').innerHTML=yearHTML+html;
+}
+
+// ─── Προγραμματισμός τρύγου από τον πίνακα (modal στο κλικ πάνω στον παραγωγό/block) ───
+function latestYieldEstFor(variety,rowLabel){
+  const blockMap=(varietyData[variety]||{})[rowLabel];
+  if(!blockMap)return null;
+  const dates=Object.keys(blockMap).sort();
+  for(let i=dates.length-1;i>=0;i--){
+    const v=blockMap[dates[i]].yieldEst;
+    if(v!==null&&v!==undefined)return v;
+  }
+  return null;
+}
+
+function openScheduleModal(variety,rowLabel){
+  const blockId=(rowBlockIndex[variety]||{})[rowLabel];
+  if(!blockId)return;
+  const s=scheduleByBlock[blockId];
+  const today=new Date().toISOString().slice(0,10);
+  let bodyHTML='';
+  if(!s){
+    const est=latestYieldEstFor(variety,rowLabel);
+    bodyHTML=`
+      <div class="sched-row"><label>Ημερομηνία τρύγου</label><input type="date" id="sm-date" value="${today}"></div>
+      ${est!==null?`<div class="sched-hint">Πρόβλεψη απόδοσης: ${est} kg</div>`:''}
+      <div class="sched-actions"><button onclick="submitSchedule('${blockId}')">📅 Προγραμματισμός</button></div>`;
+  }else if(s.actual_kg===null||s.actual_kg===undefined){
+    bodyHTML=`
+      <div class="sched-meta"><span class="badge scheduled">Προγραμματισμένο</span> για ${fmtFullDate(s.scheduled_date)}${s.created_by?' · από '+s.created_by:''}</div>
+      <div class="sched-row"><label>Πραγματικά kg</label><input type="number" id="sm-kg" min="0" step="0.1" placeholder="kg"></div>
+      <div class="sched-row"><label>Baumé °</label><input type="number" id="sm-baume" min="0" step="0.1" placeholder="° (προαιρετικό)"></div>
+      <div class="sched-actions">
+        <button onclick="submitComplete('${blockId}','${s.id}')">✅ Ολοκλήρωση</button>
+        ${isAdmin?`<button class="ghost" onclick="submitUnschedule('${blockId}','${s.id}')">Ακύρωση</button>`:''}
+      </div>`;
+  }else{
+    bodyHTML=`
+      <div class="sched-meta"><span class="badge done">Τρυγήθηκε</span> ${fmtFullDate(s.scheduled_date)} · ${s.actual_kg} kg${s.actual_baume!==null&&s.actual_baume!==undefined?' · Baumé '+s.actual_baume+'°':''}</div>
+      ${isAdmin?`<div class="sched-row"><label>Ημερομηνία τρύγου</label><input type="date" id="sm-date" value="${s.scheduled_date||''}"></div>`:''}
+      <div class="sched-row"><label>Πραγματικά kg</label><input type="number" id="sm-kg" min="0" step="0.1" value="${s.actual_kg}"></div>
+      <div class="sched-row"><label>Baumé °</label><input type="number" id="sm-baume" min="0" step="0.1" value="${s.actual_baume!==null&&s.actual_baume!==undefined?s.actual_baume:''}"></div>
+      <div class="sched-actions"><button onclick="submitEdit('${blockId}','${s.id}')">Αποθήκευση</button></div>`;
+  }
+  document.getElementById('scheduleModalContainer').innerHTML=`
+    <div class="modal-bg" onclick="if(event.target===this)closeScheduleModal()">
+      <div class="chart-modal sched-modal">
+        <button class="chart-close" onclick="closeScheduleModal()">×</button>
+        <div class="chart-modal-title">${rowLabel}</div>
+        <div class="chart-modal-sub">${variety}</div>
+        ${bodyHTML}
+      </div>
+    </div>`;
+}
+function closeScheduleModal(){document.getElementById('scheduleModalContainer').innerHTML='';}
+
+async function submitSchedule(blockId){
+  const dateInp=document.getElementById('sm-date');
+  const date=dateInp?dateInp.value:'';
+  if(!date){alert('Διάλεξε ημερομηνία.');return;}
+  let est=null;
+  for(const v of Object.keys(rowBlockIndex)){
+    for(const label of Object.keys(rowBlockIndex[v])){
+      if(rowBlockIndex[v][label]===blockId){est=latestYieldEstFor(v,label);break;}
+    }
+  }
+  const{error}=await supa.from('harvest_schedule').insert({
+    block_id:blockId, scheduled_date:date, estimated_kg:est, created_by:currentPersonName
+  });
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  closeScheduleModal();
+  await loadAndRender();
+}
+
+async function submitComplete(blockId,scheduleId){
+  const kg=document.getElementById('sm-kg').value;
+  const baume=document.getElementById('sm-baume').value;
+  if(!kg){alert('Γράψε τα πραγματικά kg.');return;}
+  const{error}=await supa.from('harvest_schedule').update({
+    actual_kg:parseFloat(kg), actual_baume:baume!==''?parseFloat(baume):null,
+    updated_at:new Date().toISOString(), updated_by:currentPersonName
+  }).eq('id',scheduleId);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  closeScheduleModal();
+  await loadAndRender();
+}
+
+async function submitEdit(blockId,scheduleId){
+  const kg=document.getElementById('sm-kg').value;
+  const baume=document.getElementById('sm-baume').value;
+  const dateInp=document.getElementById('sm-date'); // υπάρχει μόνο αν isAdmin
+  if(!kg){alert('Γράψε τα πραγματικά kg.');return;}
+  const updates={actual_kg:parseFloat(kg), actual_baume:baume!==''?parseFloat(baume):null, updated_at:new Date().toISOString(), updated_by:currentPersonName};
+  if(dateInp){
+    if(!dateInp.value){alert('Διάλεξε ημερομηνία τρύγου.');return;}
+    updates.scheduled_date=dateInp.value;
+  }
+  const{error}=await supa.from('harvest_schedule').update(updates).eq('id',scheduleId);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  closeScheduleModal();
+  await loadAndRender();
+}
+
+async function submitUnschedule(blockId,scheduleId){
+  if(!confirm('Ακύρωση προγραμματισμού για αυτό το block;'))return;
+  const{error}=await supa.from('harvest_schedule').delete().eq('id',scheduleId);
+  if(error){alert('Σφάλμα: '+error.message);return;}
+  closeScheduleModal();
+  await loadAndRender();
 }
 
 loadData();
