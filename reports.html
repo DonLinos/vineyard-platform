@@ -65,30 +65,33 @@
   .mini-cal-hdr{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;text-align:center;}
   .mini-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
   .mini-cal-dow{font-size:9px;text-align:center;color:var(--ink-faint);padding-bottom:3px;}
-  .mini-cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;border-radius:5px;color:var(--ink-dim);}
+  .mini-cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;border-radius:5px;color:var(--ink-dim);gap:1px;}
   .mini-cal-day.empty{visibility:hidden;}
   .mini-cal-day.today{box-shadow:inset 0 0 0 1px var(--gold);}
   .mini-cal-day.has-entries{cursor:pointer;}
   .mini-cal-day.has-sched{background:rgba(217,160,87,.28);color:var(--ink);font-weight:600;}
   .mini-cal-day.has-done{background:rgba(79,158,92,.28);color:var(--ink);font-weight:600;}
-  .mini-cal-day.has-missed{background:rgba(217,119,87,.32);color:var(--ink);font-weight:600;}
+  .mini-cal-day.has-both{background:linear-gradient(135deg, rgba(217,160,87,.35) 50%, rgba(79,158,92,.35) 50%);color:var(--ink);font-weight:600;}
   .mini-cal-day.selected{box-shadow:inset 0 0 0 2px var(--ink);}
-  .mini-cal-symbol{font-size:8px;font-weight:700;line-height:1;margin-top:1px;}
-  .mini-cal-day.has-done .mini-cal-symbol{color:var(--green);}
-  .mini-cal-day.has-sched .mini-cal-symbol{color:var(--orange);}
-  .mini-cal-day.has-missed .mini-cal-symbol{color:var(--danger);}
+  .mini-cal-num{font-weight:600;}
+  .mini-cal-kg{font-size:7px;font-weight:700;line-height:1;}
+  .mini-cal-kg.kg-white{color:#e8dfc8;}
+  .mini-cal-kg.kg-red{color:#e08a72;}
   .mini-cal-legend{display:flex;gap:12px;font-size:10px;color:var(--ink-faint);margin:8px 0 14px;flex-wrap:wrap;}
   .mini-cal-legend span{display:inline-flex;align-items:center;gap:4px;}
   .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
   .legend-dot.sched{background:var(--orange);}
   .legend-dot.done{background:var(--green);}
-  .legend-dot.missed{background:var(--danger);}
   .mini-day-details{margin:10px 0 14px;padding-top:10px;border-top:1px solid var(--line);}
   .mini-day-details-title{font-size:12px;font-weight:600;margin-bottom:8px;}
   .mini-day-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;}
   .mini-day-row:last-child{border-bottom:none;}
   .mini-day-name{font-weight:600;}
   .mini-day-meta{font-size:10px;color:var(--ink-dim);}
+  .mini-day-sym,.hw-agenda-sym{font-weight:700;margin-right:4px;}
+  .sym-done{color:var(--green);}
+  .sym-sched{color:var(--orange);}
+  .sym-missed{color:var(--danger);}
 
   .hw-agenda-lbl{font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;}
   .hw-agenda-item{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px;}
@@ -259,8 +262,24 @@
   // που θα δει ο χρήστης αν πατήσει μέσα στο ίδιο το Ημερολόγιο Τρύγου.
   const MONTH_NAMES_EL=['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
   const DOW_EL=['Δε','Τρ','Τε','Πε','Πα','Σα','Κυ'];
-  let hwDatesMap={};      // dateStr -> {hasSched,hasDone,hasMissed,entries[]} — γεμίζει το loadHarvestWidget
+  let hwDatesMap={};      // dateStr -> {hasSched,hasDone,hasMissed,kgWhite,kgRed,entries[]} — γεμίζει το loadHarvestWidget
   let hwSelectedDay=null; // επιλεγμένη μέρα στο mini-ημερολόγιο (κλικ, όχι hover)
+
+  // Ταξινόμηση ποικιλιών σε λευκές/κόκκινες με βάση τον κωδικό τους (π.χ. "SRH — Syrah" -> "SRH"),
+  // για το σύνολο κιλών ανά ημέρα στο κουτάκι του ημερολογίου. Ενημέρωσε τις λίστες αν προστεθεί
+  // νέα ποικιλία που δεν καλύπτεται.
+  const WHITE_VARIETY_CODES=new Set(['SVB','XNS','PRM','VAS']);
+  const RED_VARIETY_CODES=new Set(['YND','SRH','ZFD','MTR','GRN','MSF','CSF','CSV','LFK']);
+  function varietyCode(varietyStr){
+    if(!varietyStr)return'';
+    return varietyStr.split(/\s*[—–-]\s*/)[0].trim().toUpperCase();
+  }
+  function varietyColorGroup(varietyStr){
+    const code=varietyCode(varietyStr);
+    if(WHITE_VARIETY_CODES.has(code))return'white';
+    if(RED_VARIETY_CODES.has(code))return'red';
+    return null;
+  }
 
   function fmtDateShort(d){
     if(!d)return'—';
@@ -333,11 +352,16 @@
         const variety=(typeof displayVariety==='function')?displayVariety(block.variety):(block.variety||'');
         const done=(s.actual_kg!==null&&s.actual_kg!==undefined);
         const missed=!done&&s.scheduled_date<todayStrForMap;
-        if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,entries:[]};
-        if(done)datesMap[s.scheduled_date].hasDone=true;
-        else if(missed)datesMap[s.scheduled_date].hasMissed=true;
-        else datesMap[s.scheduled_date].hasSched=true;
-        datesMap[s.scheduled_date].entries.push({who,variety,done,missed});
+        const kg=parseFloat(done?s.actual_kg:s.estimated_kg)||0;
+        const colorGroup=varietyColorGroup(block.variety);
+        if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,kgWhite:0,kgRed:0,entries:[]};
+        const dm=datesMap[s.scheduled_date];
+        if(done)dm.hasDone=true;
+        else if(missed)dm.hasMissed=true;
+        else dm.hasSched=true;
+        if(colorGroup==='white')dm.kgWhite+=kg;
+        else if(colorGroup==='red')dm.kgRed+=kg;
+        dm.entries.push({who,variety,done,missed,kg});
       });
 
       hwDatesMap=datesMap;
@@ -362,17 +386,24 @@
       const dateStr=year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const info=datesMap[dateStr];
       let cls='mini-cal-day';
-      let symbol='';
       if(dateStr===todayStr)cls+=' today';
       if(dateStr===hwSelectedDay)cls+=' selected';
+      let kgHTML='';
       if(info){
         cls+=' has-entries';
-        // Προτεραιότητα: ό,τι χρειάζεται προσοχή πρώτα (✗ κόκκινο > − κίτρινο > ✓ πράσινο).
-        if(info.hasMissed){cls+=' has-missed';symbol='✗';}
-        else if(info.hasSched){cls+=' has-sched';symbol='−';}
-        else if(info.hasDone){cls+=' has-done';symbol='✓';}
+        // Χρώμα κουτιού: όπως πριν — πορτοκαλί=προγραμματισμένο, πράσινο=τρυγήθηκε, gradient αν
+        // έχει και τα δύο. Το "πέρασε η μέρα χωρίς καταχώρηση" ΔΕΝ αλλάζει το χρώμα του κουτιού
+        // (θα έδειχνε σαν χαλασμένη/αποτυχημένη μέρα) — φαίνεται με ✗ δίπλα στο όνομα του
+        // παραγωγού στη λίστα από κάτω.
+        const hasPending=info.hasSched||info.hasMissed;
+        if(hasPending&&info.hasDone)cls+=' has-both';
+        else if(info.hasDone)cls+=' has-done';
+        else if(hasPending)cls+=' has-sched';
+        const rW=Math.round(info.kgWhite),rR=Math.round(info.kgRed);
+        if(rW)kgHTML+=`<span class="mini-cal-kg kg-white">Λ${rW}</span>`;
+        if(rR)kgHTML+=`<span class="mini-cal-kg kg-red">Κ${rR}</span>`;
       }
-      cells+=`<div class="${cls}"${info?` onclick="selectMiniDay('${dateStr}')"`:''}>${d}${symbol?`<span class="mini-cal-symbol">${symbol}</span>`:''}</div>`;
+      cells+=`<div class="${cls}"${info?` onclick="selectMiniDay('${dateStr}')"`:''}><span class="mini-cal-num">${d}</span>${kgHTML}</div>`;
     }
     return `<div class="mini-cal">
       <p class="mini-cal-hdr">${MONTH_NAMES_EL[month]} ${year}</p>
@@ -388,9 +419,9 @@
     document.getElementById('hwCalendar').innerHTML=
       buildMiniCalendar(today.getFullYear(),today.getMonth(),hwDatesMap)+
       `<div class="mini-cal-legend">
-        <span><i class="legend-dot done"></i>✓ Τρυγήθηκε</span>
-        <span><i class="legend-dot sched"></i>− Προγραμματισμένο</span>
-        <span><i class="legend-dot missed"></i>✗ Πέρασε</span>
+        <span><i class="legend-dot sched"></i>Προγραμματισμένο</span>
+        <span><i class="legend-dot done"></i>Τρυγήθηκε</span>
+        <span>Λ=Λευκές, Κ=Κόκκινες (kg)</span>
       </div>`+detailsHTML;
   }
 
@@ -405,10 +436,11 @@
     return `<div class="mini-day-details">
       <div class="mini-day-details-title">📍 ${fmtDateShort(dateStr)}</div>
       ${info.entries.map(e=>{
-        const label=e.done?'Τρυγήθηκε':(e.missed?'Δεν καταχωρήθηκε':'Προγραμματισμένο');
+        const sym=e.done?'✓':(e.missed?'✗':'−');
+        const symCls=e.done?'sym-done':(e.missed?'sym-missed':'sym-sched');
         return `<div class="mini-day-row">
-          <div><div class="mini-day-name">${e.who}</div><div class="mini-day-meta">${e.variety||''}</div></div>
-          <div class="mini-day-meta" style="text-align:right;">${label}</div>
+          <div><span class="mini-day-sym ${symCls}">${sym}</span><span class="mini-day-name">${e.who}</span><div class="mini-day-meta">${e.variety||''}</div></div>
+          <div class="mini-day-meta" style="text-align:right;">${e.kg?Math.round(e.kg*10)/10+' kg':''}</div>
         </div>`;
       }).join('')}
     </div>`;
@@ -420,7 +452,13 @@
     if(!upcoming.length)return'<div class="hw-empty">Καμία προγραμματισμένη ημερομηνία.</div>';
     return upcoming.map(d=>{
       const info=datesMap[d];
-      const who=info.entries.filter(e=>!e.done).map(e=>e.who+(e.variety?' ('+e.variety+')':'')).join(', ')||info.entries.map(e=>e.who).join(', ');
+      const notDone=info.entries.filter(e=>!e.done);
+      const list=notDone.length?notDone:info.entries;
+      const who=list.map(e=>{
+        const sym=e.done?'✓':(e.missed?'✗':'−');
+        const symCls=e.done?'sym-done':(e.missed?'sym-missed':'sym-sched');
+        return `<span class="hw-agenda-sym ${symCls}">${sym}</span>${e.who}${e.variety?' ('+e.variety+')':''}`;
+      }).join(', ');
       return `<div class="hw-agenda-item"><span class="hw-agenda-date">${fmtDateShort(d)}</span><span class="hw-agenda-who">${who}</span></div>`;
     }).join('');
   }
