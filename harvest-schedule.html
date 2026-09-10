@@ -74,21 +74,19 @@
   .cal-month-lbl{font-size:14px;font-weight:600;}
   .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px;}
   .cal-dow{font-size:10px;text-align:center;color:var(--ink-faint);padding-bottom:4px;text-transform:uppercase;}
-  .cal-day{aspect-ratio:1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;color:var(--ink-dim);background:#1c251f;}
+  .cal-day{aspect-ratio:1;border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:13px;color:var(--ink-dim);background:#1c251f;gap:1px;}
   .cal-day.empty{visibility:hidden;}
   .cal-day.today{box-shadow:inset 0 0 0 1.5px var(--gold);}
   .cal-day.has-entries{cursor:pointer;}
   .cal-day.has-sched{background:rgba(217,160,87,.22);}
   .cal-day.has-done{background:rgba(79,158,92,.22);}
-  .cal-day.has-missed{background:rgba(217,119,87,.28);}
+  .cal-day.has-both{background:linear-gradient(135deg, rgba(217,160,87,.28) 50%, rgba(79,158,92,.28) 50%);}
   .cal-day.selected{box-shadow:inset 0 0 0 2px var(--ink);}
   .cal-day-num{font-weight:600;}
-  .cal-day-count{font-size:9px;color:var(--ink-faint);margin-top:1px;}
-  .cal-day-symbol{font-size:13px;font-weight:700;line-height:1;margin-top:1px;}
-  .cal-day.has-done .cal-day-symbol{color:var(--green);}
-  .cal-day.has-sched .cal-day-symbol{color:var(--orange);}
-  .cal-day.has-missed .cal-day-symbol{color:var(--danger);}
-  .cal-day.has-sched .cal-day-count,.cal-day.has-done .cal-day-count,.cal-day.has-missed .cal-day-count{color:var(--ink);}
+  .cal-day-kg{font-size:8px;font-weight:700;line-height:1.2;white-space:nowrap;}
+  .cal-day-kg.kg-white{color:#e8dfc8;}
+  .cal-day-kg.kg-red{color:#e08a72;}
+  .cal-day.has-sched .cal-day-num,.cal-day.has-done .cal-day-num,.cal-day.has-both .cal-day-num{color:var(--ink);}
   .cal-legend{display:flex;gap:14px;font-size:11px;color:var(--ink-faint);margin-top:12px;flex-wrap:wrap;}
   .cal-legend span{display:inline-flex;align-items:center;gap:5px;}
   .cal-legend-dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
@@ -96,6 +94,10 @@
   .cal-day-details-title{font-size:13px;font-weight:600;margin-bottom:8px;}
   .cal-detail-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;}
   .cal-detail-row:last-child{border-bottom:none;}
+  .cal-detail-sym{font-weight:700;margin-right:4px;}
+  .cal-detail-sym.sym-done{color:var(--green);}
+  .cal-detail-sym.sym-sched{color:var(--orange);}
+  .cal-detail-sym.sym-missed{color:var(--danger);}
   .cal-detail-name{font-weight:600;}
   .cal-detail-meta{font-size:11px;color:var(--ink-dim);}
 </style>
@@ -130,6 +132,21 @@ let selectedVarietyTab='__all__'; // καρτέλα ποικιλίας που φ
 let allScheduleRows=[]; // ΟΛΕΣ οι γραμμές harvest_schedule (όχι deduped ανά block) — για το ημερολόγιο
 const MONTH_NAMES_EL=['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
 const DOW_EL=['Δε','Τρ','Τε','Πε','Πα','Σα','Κυ'];
+// Ταξινόμηση ποικιλιών σε λευκές/κόκκινες με βάση τον κωδικό τους (π.χ. "SRH — Syrah" -> "SRH"),
+// για το σύνολο κιλών ανά ημέρα στο κουτάκι του ημερολογίου. Ενημέρωσε τις λίστες αν προστεθεί
+// νέα ποικιλία που δεν καλύπτεται.
+const WHITE_VARIETY_CODES=new Set(['SVB','XNS','PRM','VAS']);
+const RED_VARIETY_CODES=new Set(['YND','SRH','ZFD','MTR','GRN','MSF','CSF','CSV','LFK']);
+function varietyCode(varietyStr){
+  if(!varietyStr)return'';
+  return varietyStr.split(/\s*[—–-]\s*/)[0].trim().toUpperCase();
+}
+function varietyColorGroup(varietyStr){
+  const code=varietyCode(varietyStr);
+  if(WHITE_VARIETY_CODES.has(code))return'white';
+  if(RED_VARIETY_CODES.has(code))return'red';
+  return null;
+}
 const _today=new Date();
 let calYear=_today.getFullYear();
 let calMonth=_today.getMonth(); // 0-indexed
@@ -267,11 +284,16 @@ function buildDatesMap(visibleBlocks){
     // "Πέρασε η μέρα": ήταν προγραμματισμένο, η ημερομηνία πέρασε, και ακόμα δεν καταχωρήθηκαν
     // πραγματικά kg — ξεχωριστό από "Προγραμματισμένο" (μελλοντική/σημερινή ημερομηνία).
     const missed=!done&&s.scheduled_date<todayStr;
-    if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,entries:[]};
-    if(done)datesMap[s.scheduled_date].hasDone=true;
-    else if(missed)datesMap[s.scheduled_date].hasMissed=true;
-    else datesMap[s.scheduled_date].hasSched=true;
-    datesMap[s.scheduled_date].entries.push({
+    const kgVal=parseFloat(done?s.actual_kg:s.estimated_kg)||0;
+    const colorGroup=varietyColorGroup(b.variety);
+    if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,kgWhite:0,kgRed:0,entries:[]};
+    const dm=datesMap[s.scheduled_date];
+    if(done)dm.hasDone=true;
+    else if(missed)dm.hasMissed=true;
+    else dm.hasSched=true;
+    if(colorGroup==='white')dm.kgWhite+=kgVal;
+    else if(colorGroup==='red')dm.kgRed+=kgVal;
+    dm.entries.push({
       name:b.blockCode+(b.vineyardCode?' · '+b.vineyardCode:''),
       variety:b.variety,
       done,
@@ -296,16 +318,21 @@ function calendarHTML(datesMap){
     let cls='cal-day';
     if(dateStr===todayStr)cls+=' today';
     if(dateStr===selectedCalDay)cls+=' selected';
-    let count=0,symbol='';
+    let kgHTML='';
     if(info){
-      count=info.entries.length;
       cls+=' has-entries';
-      // Προτεραιότητα εμφάνισης: ό,τι χρειάζεται προσοχή πρώτα (κόκκινο > κίτρινο > πράσινο).
-      if(info.hasMissed){cls+=' has-missed';symbol='✗';}
-      else if(info.hasSched){cls+=' has-sched';symbol='−';}
-      else if(info.hasDone){cls+=' has-done';symbol='✓';}
+      // Χρώμα κουτιού: πορτοκαλί=προγραμματισμένο, πράσινο=τρυγήθηκε, gradient αν έχει και τα
+      // δύο. Το "πέρασε η μέρα χωρίς καταχώρηση" ΔΕΝ αλλάζει το χρώμα του κουτιού (θα έδειχνε
+      // σαν χαλασμένη/αποτυχημένη μέρα) — φαίνεται με ✗ δίπλα στο όνομα στις λεπτομέρειες.
+      const hasPending=info.hasSched||info.hasMissed;
+      if(hasPending&&info.hasDone)cls+=' has-both';
+      else if(info.hasDone)cls+=' has-done';
+      else if(hasPending)cls+=' has-sched';
+      const rW=Math.round(info.kgWhite),rR=Math.round(info.kgRed);
+      if(rW)kgHTML+=`<span class="cal-day-kg kg-white">W: ${rW} Kg</span>`;
+      if(rR)kgHTML+=`<span class="cal-day-kg kg-red">R: ${rR} Kg</span>`;
     }
-    cells+=`<div class="${cls}"${info?` onclick="selectCalDay('${dateStr}')"`:''}><span class="cal-day-num">${d}</span>${symbol?`<span class="cal-day-symbol">${symbol}</span>`:''}${count?`<span class="cal-day-count">${count}</span>`:''}</div>`;
+    cells+=`<div class="${cls}"${info?` onclick="selectCalDay('${dateStr}')"`:''}><span class="cal-day-num">${d}</span>${kgHTML}</div>`;
   }
   const detailsHTML=(selectedCalDay&&datesMap[selectedCalDay])?dayDetailsHTML(selectedCalDay,datesMap[selectedCalDay]):'';
   return `<div class="cal-card">
@@ -316,9 +343,9 @@ function calendarHTML(datesMap){
     </div>
     <div class="cal-grid">${cells}</div>
     <div class="cal-legend">
-      <span><i class="cal-legend-dot" style="background:var(--green);"></i>✓ Τρυγήθηκε</span>
-      <span><i class="cal-legend-dot" style="background:var(--orange);"></i>− Προγραμματισμένο</span>
-      <span><i class="cal-legend-dot" style="background:var(--danger);"></i>✗ Πέρασε χωρίς καταχώρηση</span>
+      <span><i class="cal-legend-dot" style="background:var(--orange);"></i>Προγραμματισμένο</span>
+      <span><i class="cal-legend-dot" style="background:var(--green);"></i>Τρυγήθηκε</span>
+      <span>W=Λευκές, R=Κόκκινες</span>
     </div>
     ${detailsHTML}
   </div>`;
@@ -328,10 +355,12 @@ function dayDetailsHTML(dateStr,info){
   return `<div class="cal-day-details">
     <div class="cal-day-details-title">📍 ${fmtDate(dateStr)}</div>
     ${info.entries.map(e=>{
+      const sym=e.done?'✓':(e.missed?'✗':'−');
+      const symCls=e.done?'sym-done':(e.missed?'sym-missed':'sym-sched');
       const badgeClass=e.done?'done':(e.missed?'missed':'scheduled');
       const badgeText=e.done?'Τρυγήθηκε':(e.missed?'Δεν καταχωρήθηκε':'Προγραμματισμένο');
       return `<div class="cal-detail-row">
-      <div><div class="cal-detail-name">${e.name}</div><div class="cal-detail-meta">${e.variety||''}</div></div>
+      <div><div class="cal-detail-name"><span class="cal-detail-sym ${symCls}">${sym}</span>${e.name}</div><div class="cal-detail-meta">${e.variety||''}</div></div>
       <div style="text-align:right;">
         <span class="badge ${badgeClass}">${badgeText}</span>
         <div class="cal-detail-meta">${e.kg!==null&&e.kg!==undefined?e.kg+' kg':''}${e.baume!==null&&e.baume!==undefined?' · '+e.baume+'°':''}</div>
