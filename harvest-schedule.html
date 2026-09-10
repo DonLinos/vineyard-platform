@@ -26,6 +26,7 @@
   .badge.ready{background:rgba(201,154,62,.18);color:var(--gold);}
   .badge.scheduled{background:rgba(217,160,87,.18);color:var(--orange);}
   .badge.done{background:rgba(79,158,92,.18);color:var(--green);}
+  .badge.missed{background:rgba(217,119,87,.18);color:var(--danger);}
   .row-actions{display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap;}
   input[type="date"],input[type="number"]{
     background:#18201b;border:1px solid var(--line);border-radius:6px;color:var(--ink);
@@ -79,11 +80,15 @@
   .cal-day.has-entries{cursor:pointer;}
   .cal-day.has-sched{background:rgba(217,160,87,.22);}
   .cal-day.has-done{background:rgba(79,158,92,.22);}
-  .cal-day.has-both{background:linear-gradient(135deg, rgba(217,160,87,.28) 50%, rgba(79,158,92,.28) 50%);}
+  .cal-day.has-missed{background:rgba(217,119,87,.28);}
   .cal-day.selected{box-shadow:inset 0 0 0 2px var(--ink);}
   .cal-day-num{font-weight:600;}
   .cal-day-count{font-size:9px;color:var(--ink-faint);margin-top:1px;}
-  .cal-day.has-sched .cal-day-count,.cal-day.has-done .cal-day-count,.cal-day.has-both .cal-day-count{color:var(--ink);}
+  .cal-day-symbol{font-size:13px;font-weight:700;line-height:1;margin-top:1px;}
+  .cal-day.has-done .cal-day-symbol{color:var(--green);}
+  .cal-day.has-sched .cal-day-symbol{color:var(--orange);}
+  .cal-day.has-missed .cal-day-symbol{color:var(--danger);}
+  .cal-day.has-sched .cal-day-count,.cal-day.has-done .cal-day-count,.cal-day.has-missed .cal-day-count{color:var(--ink);}
   .cal-legend{display:flex;gap:14px;font-size:11px;color:var(--ink-faint);margin-top:12px;flex-wrap:wrap;}
   .cal-legend span{display:inline-flex;align-items:center;gap:5px;}
   .cal-legend-dot{width:9px;height:9px;border-radius:3px;display:inline-block;}
@@ -251,6 +256,7 @@ function buildDatesMap(visibleBlocks){
   const visibleIds=new Set(visibleBlocks.map(b=>b.id));
   const blockMeta={};
   blocksData.forEach(b=>{blockMeta[b.id]=b;});
+  const todayStr=new Date().toISOString().slice(0,10);
   const datesMap={};
   allScheduleRows.forEach(s=>{
     if(!visibleIds.has(s.block_id))return;
@@ -258,12 +264,18 @@ function buildDatesMap(visibleBlocks){
     const b=blockMeta[s.block_id];
     if(!b)return;
     const done=(s.actual_kg!==null&&s.actual_kg!==undefined);
-    if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,entries:[]};
-    datesMap[s.scheduled_date][done?'hasDone':'hasSched']=true;
+    // "Πέρασε η μέρα": ήταν προγραμματισμένο, η ημερομηνία πέρασε, και ακόμα δεν καταχωρήθηκαν
+    // πραγματικά kg — ξεχωριστό από "Προγραμματισμένο" (μελλοντική/σημερινή ημερομηνία).
+    const missed=!done&&s.scheduled_date<todayStr;
+    if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,entries:[]};
+    if(done)datesMap[s.scheduled_date].hasDone=true;
+    else if(missed)datesMap[s.scheduled_date].hasMissed=true;
+    else datesMap[s.scheduled_date].hasSched=true;
     datesMap[s.scheduled_date].entries.push({
       name:b.blockCode+(b.vineyardCode?' · '+b.vineyardCode:''),
       variety:b.variety,
       done,
+      missed,
       kg:done?s.actual_kg:s.estimated_kg,
       baume:done?s.actual_baume:null
     });
@@ -284,15 +296,16 @@ function calendarHTML(datesMap){
     let cls='cal-day';
     if(dateStr===todayStr)cls+=' today';
     if(dateStr===selectedCalDay)cls+=' selected';
-    let count=0;
+    let count=0,symbol='';
     if(info){
       count=info.entries.length;
       cls+=' has-entries';
-      if(info.hasSched&&info.hasDone)cls+=' has-both';
-      else if(info.hasDone)cls+=' has-done';
-      else if(info.hasSched)cls+=' has-sched';
+      // Προτεραιότητα εμφάνισης: ό,τι χρειάζεται προσοχή πρώτα (κόκκινο > κίτρινο > πράσινο).
+      if(info.hasMissed){cls+=' has-missed';symbol='✗';}
+      else if(info.hasSched){cls+=' has-sched';symbol='−';}
+      else if(info.hasDone){cls+=' has-done';symbol='✓';}
     }
-    cells+=`<div class="${cls}"${info?` onclick="selectCalDay('${dateStr}')"`:''}><span class="cal-day-num">${d}</span>${count?`<span class="cal-day-count">${count}</span>`:''}</div>`;
+    cells+=`<div class="${cls}"${info?` onclick="selectCalDay('${dateStr}')"`:''}><span class="cal-day-num">${d}</span>${symbol?`<span class="cal-day-symbol">${symbol}</span>`:''}${count?`<span class="cal-day-count">${count}</span>`:''}</div>`;
   }
   const detailsHTML=(selectedCalDay&&datesMap[selectedCalDay])?dayDetailsHTML(selectedCalDay,datesMap[selectedCalDay]):'';
   return `<div class="cal-card">
@@ -303,8 +316,9 @@ function calendarHTML(datesMap){
     </div>
     <div class="cal-grid">${cells}</div>
     <div class="cal-legend">
-      <span><i class="cal-legend-dot" style="background:var(--orange);"></i>Προγραμματισμένο</span>
-      <span><i class="cal-legend-dot" style="background:var(--green);"></i>Τρυγήθηκε</span>
+      <span><i class="cal-legend-dot" style="background:var(--green);"></i>✓ Τρυγήθηκε</span>
+      <span><i class="cal-legend-dot" style="background:var(--orange);"></i>− Προγραμματισμένο</span>
+      <span><i class="cal-legend-dot" style="background:var(--danger);"></i>✗ Πέρασε χωρίς καταχώρηση</span>
     </div>
     ${detailsHTML}
   </div>`;
@@ -313,13 +327,16 @@ function calendarHTML(datesMap){
 function dayDetailsHTML(dateStr,info){
   return `<div class="cal-day-details">
     <div class="cal-day-details-title">📍 ${fmtDate(dateStr)}</div>
-    ${info.entries.map(e=>`<div class="cal-detail-row">
+    ${info.entries.map(e=>{
+      const badgeClass=e.done?'done':(e.missed?'missed':'scheduled');
+      const badgeText=e.done?'Τρυγήθηκε':(e.missed?'Δεν καταχωρήθηκε':'Προγραμματισμένο');
+      return `<div class="cal-detail-row">
       <div><div class="cal-detail-name">${e.name}</div><div class="cal-detail-meta">${e.variety||''}</div></div>
       <div style="text-align:right;">
-        <span class="badge ${e.done?'done':'scheduled'}">${e.done?'Τρυγήθηκε':'Προγραμματισμένο'}</span>
+        <span class="badge ${badgeClass}">${badgeText}</span>
         <div class="cal-detail-meta">${e.kg!==null&&e.kg!==undefined?e.kg+' kg':''}${e.baume!==null&&e.baume!==undefined?' · '+e.baume+'°':''}</div>
       </div>
-    </div>`).join('')}
+    </div>`;}).join('')}
   </div>`;
 }
 
