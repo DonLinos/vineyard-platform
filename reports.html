@@ -8,7 +8,7 @@
 <style>
   :root{
     --ink:#f2ede1; --ink-dim:#b9c2b3; --ink-faint:#7c8a78; --bg:#1d2620; --card:#26312a;
-    --line:#3a473e; --gold:#c99a3e; --green:#4f9e5c; --orange:#d9a057;
+    --line:#3a473e; --gold:#c99a3e; --green:#4f9e5c; --orange:#d9a057; --danger:#d97757;
   }
   *{box-sizing:border-box;}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;min-height:100dvh;}
@@ -65,17 +65,30 @@
   .mini-cal-hdr{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;text-align:center;}
   .mini-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
   .mini-cal-dow{font-size:9px;text-align:center;color:var(--ink-faint);padding-bottom:3px;}
-  .mini-cal-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:5px;color:var(--ink-dim);}
+  .mini-cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;border-radius:5px;color:var(--ink-dim);}
   .mini-cal-day.empty{visibility:hidden;}
   .mini-cal-day.today{box-shadow:inset 0 0 0 1px var(--gold);}
+  .mini-cal-day.has-entries{cursor:pointer;}
   .mini-cal-day.has-sched{background:rgba(217,160,87,.28);color:var(--ink);font-weight:600;}
   .mini-cal-day.has-done{background:rgba(79,158,92,.28);color:var(--ink);font-weight:600;}
-  .mini-cal-day.has-both{background:linear-gradient(135deg, rgba(217,160,87,.35) 50%, rgba(79,158,92,.35) 50%);color:var(--ink);font-weight:600;}
+  .mini-cal-day.has-missed{background:rgba(217,119,87,.32);color:var(--ink);font-weight:600;}
+  .mini-cal-day.selected{box-shadow:inset 0 0 0 2px var(--ink);}
+  .mini-cal-symbol{font-size:8px;font-weight:700;line-height:1;margin-top:1px;}
+  .mini-cal-day.has-done .mini-cal-symbol{color:var(--green);}
+  .mini-cal-day.has-sched .mini-cal-symbol{color:var(--orange);}
+  .mini-cal-day.has-missed .mini-cal-symbol{color:var(--danger);}
   .mini-cal-legend{display:flex;gap:12px;font-size:10px;color:var(--ink-faint);margin:8px 0 14px;flex-wrap:wrap;}
   .mini-cal-legend span{display:inline-flex;align-items:center;gap:4px;}
   .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
   .legend-dot.sched{background:var(--orange);}
   .legend-dot.done{background:var(--green);}
+  .legend-dot.missed{background:var(--danger);}
+  .mini-day-details{margin:10px 0 14px;padding-top:10px;border-top:1px solid var(--line);}
+  .mini-day-details-title{font-size:12px;font-weight:600;margin-bottom:8px;}
+  .mini-day-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;}
+  .mini-day-row:last-child{border-bottom:none;}
+  .mini-day-name{font-weight:600;}
+  .mini-day-meta{font-size:10px;color:var(--ink-dim);}
 
   .hw-agenda-lbl{font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;}
   .hw-agenda-item{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px;}
@@ -246,6 +259,8 @@
   // που θα δει ο χρήστης αν πατήσει μέσα στο ίδιο το Ημερολόγιο Τρύγου.
   const MONTH_NAMES_EL=['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
   const DOW_EL=['Δε','Τρ','Τε','Πε','Πα','Σα','Κυ'];
+  let hwDatesMap={};      // dateStr -> {hasSched,hasDone,hasMissed,entries[]} — γεμίζει το loadHarvestWidget
+  let hwSelectedDay=null; // επιλεγμένη μέρα στο mini-ημερολόγιο (κλικ, όχι hover)
 
   function fmtDateShort(d){
     if(!d)return'—';
@@ -306,7 +321,9 @@
       const remainCount=Math.max(0,totalBlocks-doneCount-schedCount);
       setHwStats(doneCount,schedCount,remainCount);
 
-      // Ημερολόγιο: ΟΛΕΣ οι γραμμές (κάθε φάση τρύγου), ομαδοποιημένες ανά ημερομηνία
+      // Ημερολόγιο: ΟΛΕΣ οι γραμμές (κάθε φάση τρύγου), ομαδοποιημένες ανά ημερομηνία.
+      // "missed" = ήταν προγραμματισμένο, η μέρα πέρασε, και ακόμα δεν καταχωρήθηκαν kg.
+      const todayStrForMap=new Date().toISOString().slice(0,10);
       const datesMap={};
       rows.forEach(s=>{
         if(!s.scheduled_date)return;
@@ -315,15 +332,16 @@
         const who=vineyardCodeById[block.vineyard_id]||block.block_code;
         const variety=(typeof displayVariety==='function')?displayVariety(block.variety):(block.variety||'');
         const done=(s.actual_kg!==null&&s.actual_kg!==undefined);
-        if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,entries:[]};
-        datesMap[s.scheduled_date][done?'hasDone':'hasSched']=true;
-        datesMap[s.scheduled_date].entries.push({who,variety,done});
+        const missed=!done&&s.scheduled_date<todayStrForMap;
+        if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,entries:[]};
+        if(done)datesMap[s.scheduled_date].hasDone=true;
+        else if(missed)datesMap[s.scheduled_date].hasMissed=true;
+        else datesMap[s.scheduled_date].hasSched=true;
+        datesMap[s.scheduled_date].entries.push({who,variety,done,missed});
       });
 
-      const today=new Date();
-      document.getElementById('hwCalendar').innerHTML=
-        buildMiniCalendar(today.getFullYear(),today.getMonth(),datesMap)+
-        `<div class="mini-cal-legend"><span><i class="legend-dot sched"></i>Προγραμματισμένο</span><span><i class="legend-dot done"></i>Τρυγήθηκε</span></div>`;
+      hwDatesMap=datesMap;
+      renderHwCalendar();
 
       document.getElementById('hwAgenda').innerHTML=buildAgenda(datesMap);
     }catch(e){
@@ -344,19 +362,55 @@
       const dateStr=year+'-'+String(month+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
       const info=datesMap[dateStr];
       let cls='mini-cal-day';
-      let title='';
+      let symbol='';
       if(dateStr===todayStr)cls+=' today';
+      if(dateStr===hwSelectedDay)cls+=' selected';
       if(info){
-        if(info.hasSched&&info.hasDone)cls+=' has-both';
-        else if(info.hasDone)cls+=' has-done';
-        else if(info.hasSched)cls+=' has-sched';
-        title=info.entries.map(e=>e.who+(e.variety?' — '+e.variety:'')+(e.done?' ✓':'')).join('\n');
+        cls+=' has-entries';
+        // Προτεραιότητα: ό,τι χρειάζεται προσοχή πρώτα (✗ κόκκινο > − κίτρινο > ✓ πράσινο).
+        if(info.hasMissed){cls+=' has-missed';symbol='✗';}
+        else if(info.hasSched){cls+=' has-sched';symbol='−';}
+        else if(info.hasDone){cls+=' has-done';symbol='✓';}
       }
-      cells+=`<div class="${cls}"${title?` title="${title.replace(/"/g,'&quot;')}"`:''}>${d}</div>`;
+      cells+=`<div class="${cls}"${info?` onclick="selectMiniDay('${dateStr}')"`:''}>${d}${symbol?`<span class="mini-cal-symbol">${symbol}</span>`:''}</div>`;
     }
     return `<div class="mini-cal">
       <p class="mini-cal-hdr">${MONTH_NAMES_EL[month]} ${year}</p>
       <div class="mini-cal-grid">${cells}</div>
+    </div>`;
+  }
+
+  // Ξαναζωγραφίζει το mini-ημερολόγιο (πλέγμα + legend + λεπτομέρειες επιλεγμένης μέρας) χωρίς να
+  // ξαναφορτώνει δεδομένα — χρησιμοποιείται και στο αρχικό load και σε κάθε κλικ σε μέρα.
+  function renderHwCalendar(){
+    const today=new Date();
+    const detailsHTML=(hwSelectedDay&&hwDatesMap[hwSelectedDay])?buildMiniDayDetails(hwSelectedDay,hwDatesMap[hwSelectedDay]):'';
+    document.getElementById('hwCalendar').innerHTML=
+      buildMiniCalendar(today.getFullYear(),today.getMonth(),hwDatesMap)+
+      `<div class="mini-cal-legend">
+        <span><i class="legend-dot done"></i>✓ Τρυγήθηκε</span>
+        <span><i class="legend-dot sched"></i>− Προγραμματισμένο</span>
+        <span><i class="legend-dot missed"></i>✗ Πέρασε</span>
+      </div>`+detailsHTML;
+  }
+
+  // Κλικ σε μέρα του mini-ημερολογίου (αντί για hover/title) — δεύτερο κλικ στην ίδια μέρα την
+  // αποεπιλέγει, ίδια συμπεριφορά με το μεγάλο ημερολόγιο στο harvest-schedule.html.
+  function selectMiniDay(dateStr){
+    hwSelectedDay=(hwSelectedDay===dateStr)?null:dateStr;
+    renderHwCalendar();
+  }
+
+  function buildMiniDayDetails(dateStr,info){
+    return `<div class="mini-day-details">
+      <div class="mini-day-details-title">📍 ${fmtDateShort(dateStr)}</div>
+      ${info.entries.map(e=>{
+        const label=e.done?'Τρυγήθηκε':(e.missed?'Δεν καταχωρήθηκε':'Προγραμματισμένο');
+        return `<div class="mini-day-row">
+          <div><div class="mini-day-name">${e.who}</div><div class="mini-day-meta">${e.variety||''}</div></div>
+          <div class="mini-day-meta" style="text-align:right;">${label}</div>
+        </div>`;
+      }).join('')}
     </div>`;
   }
 
