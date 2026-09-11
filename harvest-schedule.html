@@ -299,7 +299,8 @@ function buildDatesMap(visibleBlocks){
       done,
       missed,
       kg:done?s.actual_kg:s.estimated_kg,
-      baume:done?s.actual_baume:null
+      baume:done?s.actual_baume:null,
+      by:s.updated_by||s.created_by||''
     });
   });
   return datesMap;
@@ -360,7 +361,7 @@ function dayDetailsHTML(dateStr,info){
       const badgeClass=e.done?'done':(e.missed?'missed':'scheduled');
       const badgeText=e.done?'Τρυγήθηκε':(e.missed?'Δεν καταχωρήθηκε':'Προγραμματισμένο');
       return `<div class="cal-detail-row">
-      <div><div class="cal-detail-name"><span class="cal-detail-sym ${symCls}">${sym}</span>${e.name}</div><div class="cal-detail-meta">${e.variety||''}</div></div>
+      <div><div class="cal-detail-name"><span class="cal-detail-sym ${symCls}">${sym}</span>${e.name}</div><div class="cal-detail-meta">${e.variety||''}${e.by?' · '+e.by:''}</div></div>
       <div style="text-align:right;">
         <span class="badge ${badgeClass}">${badgeText}</span>
         <div class="cal-detail-meta">${e.kg!==null&&e.kg!==undefined?e.kg+' kg':''}${e.baume!==null&&e.baume!==undefined?' · '+e.baume+'°':''}</div>
@@ -495,7 +496,7 @@ function scheduledCard(b){
       <input type="number" id="actual-${b.id}" placeholder="Πραγματικά kg" min="0" step="0.1">
       <input type="number" class="baume-input" id="actual-baume-${b.id}" placeholder="Baumé °" min="0" step="0.1">
       <button class="small" onclick="completeBlock('${b.id}','${s.id}')">✅ Ολοκλήρωση</button>
-      ${isAdmin?`<button class="small ghost" onclick="unscheduleBlock('${b.id}','${s.id}')">Ακύρωση</button>`:''}
+      <button class="small ghost" onclick="unscheduleBlock('${b.id}','${s.id}')">Ακύρωση</button>
     </div>
   </div>`;
 }

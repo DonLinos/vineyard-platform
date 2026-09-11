@@ -216,7 +216,7 @@ function renderForm(){
 
     ${history.length?`<div class="running-total">
       Σύνολο μέχρι τώρα: <strong>${total} kg</strong> σε ${history.length} φάση${history.length!==1?'εις':''}
-      ${history.map(h=>`<div class="hist-row"><span>${fmtShortDate(h.harvest_date)} — ${h.actual_kg} kg${h.note?' · '+h.note:''}</span><button class="hist-del" onclick="deleteActual('${h.id}')">Διαγραφή</button></div>`).join('')}
+      ${history.map(h=>`<div class="hist-row"><span>${fmtShortDate(h.harvest_date)} — ${h.actual_kg} kg${h.note?' · '+h.note:''}${h.recorded_by?' · '+h.recorded_by:''}</span><button class="hist-del" onclick="deleteActual('${h.id}')">Διαγραφή</button></div>`).join('')}
     </div>`:''}
 
     <div class="sec-lbl">Νέα φάση τρύγου</div>
@@ -276,7 +276,7 @@ async function saveEntry(){
     if(error)throw error;
     if(!actualsByBlock[selectedBlock.id])actualsByBlock[selectedBlock.id]=[];
     const list=actualsByBlock[selectedBlock.id].filter(r=>r.harvest_date!==dateStr);
-    list.push({id:savedId,harvest_date:dateStr,actual_kg:row.actual_kg,note:row.note});
+    list.push({id:savedId,harvest_date:dateStr,actual_kg:row.actual_kg,note:row.note,recorded_by:row.recorded_by});
     actualsByBlock[selectedBlock.id]=list;
     showToast();
     renderForm();

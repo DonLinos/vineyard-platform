@@ -459,6 +459,7 @@ async function deleteAccessCode(id){
 let customVarieties=[]; // [{id, code, name}]
 let currentSupervisorName=''; // wineries.supervisor_name — εμφανίζεται στο dashboard του πελάτη (reports.html)
 let currentWineryEmail=''; // wineries.email — μόνο για αρχείο/επικοινωνία, όχι για login
+let currentWineryGPS=''; // wineries.gps — "γεωγρ. πλάτος, γεωγρ. μήκος" — για το κουτάκι καιρού στο reports.html
 
 async function loadCustomVarieties(){
   if(!supabaseClient||!WINERY_ID)return;
@@ -519,6 +520,13 @@ function settingsModalHTML(){
       <button class="btn" onclick="saveWineryEmail()">Αποθήκευση</button>
     </div>
 
+    <div class="sec-lbl">Τοποθεσία (GPS) — για τον καιρό</div>
+    <div style="font-size:12px;color:#888;margin-bottom:10px;">Συντεταγμένες του οινοποιείου, σε μορφή "γεωγραφικό πλάτος, γεωγραφικό μήκος" (π.χ. 34.89, 32.88) — χρησιμοποιούνται για να φέρνει ο καιρός (Open-Meteo) στο dashboard του πελάτη.</div>
+    <div class="g3" style="align-items:end;">
+      <div class="field" style="grid-column:span 2;"><span class="flbl">Συντεταγμένες</span><input class="finp" id="stWineryGPS" placeholder="π.χ. 34.89, 32.88" value="${(currentWineryGPS||'').replace(/"/g,'&quot;')}"></div>
+      <button class="btn" onclick="saveWineryGPS()">Αποθήκευση</button>
+    </div>
+
     <div style="margin-top:16px;text-align:right;"><button class="btn" onclick="closeModal('settingsModalContainer')">Κλείσιμο</button></div>
   </div></div>`;
 }
@@ -566,6 +574,19 @@ async function saveWineryEmail(){
   const{error}=await supabaseClient.from('wineries').update({email:email||null}).eq('id',WINERY_ID);
   if(error){alert('Αποτυχία αποθήκευσης ('+error.message+'). Μάλλον χρειάζεται να τρέξεις πρώτα το wineries-email-setup.sql στο Supabase.');return;}
   currentWineryEmail=email;
+  alert('Αποθηκεύτηκε.');
+}
+
+async function saveWineryGPS(){
+  const gps=(document.getElementById('stWineryGPS')?.value||'').trim();
+  if(!supabaseClient||!WINERY_ID){alert('Δεν υπάρχει σύνδεση με το Supabase.');return;}
+  if(gps){
+    const parts=gps.split(',').map(s=>parseFloat(s.trim()));
+    if(parts.length<2||isNaN(parts[0])||isNaN(parts[1])){alert('Η τοποθεσία πρέπει να είναι στη μορφή "γεωγραφικό πλάτος, γεωγραφικό μήκος", π.χ. 34.89, 32.88.');return;}
+  }
+  const{error}=await supabaseClient.from('wineries').update({gps:gps||null}).eq('id',WINERY_ID);
+  if(error){alert('Αποτυχία αποθήκευσης ('+error.message+'). Μάλλον χρειάζεται να τρέξεις πρώτα: ALTER TABLE wineries ADD COLUMN gps text; στο Supabase SQL Editor.');return;}
+  currentWineryGPS=gps;
   alert('Αποθηκεύτηκε.');
 }
 
@@ -872,6 +893,11 @@ async function loadState(){
       currentSupervisorName=w.supervisor_name||'';
       currentWineryEmail=w.email||'';
     }
+
+    // gps: ξεχωριστό select ώστε να μη σπάει το παραπάνω (name/supervisor_name/email) αν δεν
+    // έχει τρέξει ακόμα το ALTER TABLE wineries ADD COLUMN gps text;
+    const rGps=await supabaseClient.from('wineries').select('gps').eq('id',WINERY_ID).maybeSingle();
+    if(!rGps.error&&rGps.data)currentWineryGPS=rGps.data.gps||'';
   }
 
   // Πρώτα δοκίμασε Supabase (η "αλήθεια" που μοιράζεται σε κάθε μηχάνημα)

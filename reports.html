@@ -28,7 +28,7 @@
 
   .section-lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 10px;padding-left:2px;}
 
-  /* ─── Dashboard: 3 ίσες στήλες, σειρά Αμπελώνες Οινοποιείου · Προγραμματισμός Τρύγου · Ενιαίο Ημερολόγιο (τρύγος + εργασίες) ─── */
+  /* ─── Dashboard: 3 ίσες στήλες, σειρά Αμπελώνες Οινοποιείου · Προγραμματισμός Τρύγου · Ημερολόγιο ─── */
   .dash-grid{display:grid;grid-template-columns:1fr;gap:16px;margin:0 0 30px;}
   @media(min-width:860px){.dash-grid{grid-template-columns:repeat(3,1fr);align-items:start;}}
   .dash-col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;}
@@ -87,7 +87,6 @@
   .mini-cal-day.has-sched{background:rgba(217,160,87,.28);color:var(--ink);font-weight:600;}
   .mini-cal-day.has-done{background:rgba(79,158,92,.28);color:var(--ink);font-weight:600;}
   .mini-cal-day.has-both{background:linear-gradient(135deg, rgba(217,160,87,.35) 50%, rgba(79,158,92,.35) 50%);color:var(--ink);font-weight:600;}
-  .mini-cal-day.has-wo::after{content:'';position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:#a78bfa;}
   .mini-cal-day.selected{box-shadow:inset 0 0 0 2px var(--ink);}
   .mini-cal-num{font-weight:600;}
   .mini-cal-kg{font-size:6.5px;font-weight:700;line-height:1.2;white-space:nowrap;}
@@ -98,7 +97,6 @@
   .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
   .legend-dot.sched{background:var(--orange);}
   .legend-dot.done{background:var(--green);}
-  .legend-dot.wo{background:#a78bfa;border-radius:50%;}
   .mini-day-details{margin:10px 0 14px;padding-top:10px;border-top:1px solid var(--line);}
   .mini-day-details-title{font-size:12px;font-weight:600;margin-bottom:8px;}
   .mini-day-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;}
@@ -138,7 +136,7 @@
     <div class="row-val">VitisVision</div>
   </div>
 
-  <!-- ─── 3 κουτάκια: (Αμπελώνες οινοποιείου + καιρός) · Προγραμματισμός τρύγου · Ενιαίο ημερολόγιο (τρύγος + εργασίες) ─── -->
+  <!-- ─── 3 κουτάκια: (Αμπελώνες οινοποιείου + καιρός) · Προγραμματισμός τρύγου · Ημερολόγιο ─── -->
   <div class="dash-grid">
     <div class="dash-col-stack">
       <div class="dash-col" id="metricsCol">
@@ -426,14 +424,6 @@
     return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0');
   }
 
-  // Επιστρέφει την ημερήσια εγγραφή του datesMap για μια ημερομηνία, δημιουργώντας την αν
-  // δεν υπάρχει ακόμα — έτσι μια μέρα με ΜΟΝΟ εργασία (χωρίς προγραμματισμένο τρύγο) παίρνει
-  // επίσης δικό της κελί/marker στο ημερολόγιο.
-  function ensureDateEntry(datesMap,date){
-    if(!datesMap[date])datesMap[date]={hasSched:false,hasDone:false,hasMissed:false,hasWO:false,kgWhite:0,kgRed:0,entries:[],woEntries:[]};
-    return datesMap[date];
-  }
-
   async function loadHarvestWidget(){
     const setHwStats=(done,sched,remain)=>{
       const el=document.getElementById('hwStats');
@@ -466,15 +456,8 @@
       const totalBlocks=blockIds.length;
       if(!totalBlocks){setHwStats(0,0,0);document.getElementById('hwAgenda').innerHTML='<div class="hw-empty">Δεν βρέθηκαν blocks.</div>';return;}
 
-      const[schedRes,mgmtRes,visitsRes]=await Promise.all([
-        supa.from('harvest_schedule').select('*').in('block_id',blockIds).order('scheduled_date',{ascending:true}),
-        supa.from('management_observations').select('block_id,visit_id,observed_date,practices,note,status').in('block_id',blockIds),
-        supa.from('visits').select('id,visit_date').eq('winery_id',WINERY_ID)
-      ]);
-      const rows=schedRes.data||[];
-      const mgmtRows=mgmtRes.data||[];
-      const visitDateById={};
-      (visitsRes.data||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
+      const{data:schedRows}=await supa.from('harvest_schedule').select('*').in('block_id',blockIds).order('scheduled_date',{ascending:true});
+      const rows=schedRows||[];
 
       const currentByBlock={};
       rows.forEach(s=>{
@@ -505,26 +488,14 @@
         const missed=!done&&s.scheduled_date<todayStrForMap;
         const kg=parseFloat(done?s.actual_kg:s.estimated_kg)||0;
         const colorGroup=varietyColorGroup(block.variety);
-        const dm=ensureDateEntry(datesMap,s.scheduled_date);
+        if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,kgWhite:0,kgRed:0,entries:[]};
+        const dm=datesMap[s.scheduled_date];
         if(done)dm.hasDone=true;
         else if(missed)dm.hasMissed=true;
         else dm.hasSched=true;
         if(colorGroup==='white')dm.kgWhite+=kg;
         else if(colorGroup==='red')dm.kgRed+=kg;
-        dm.entries.push({who,variety,done,missed,kg});
-      });
-
-      // ─── Ενιαίο ημερολόγιο: προσθήκη εργασιών (management_observations / Εργασίες-Work Orders)
-      // στις ίδιες ημέρες, ώστε το ίδιο ημερολόγιο να δείχνει και τρύγο και εργασίες μαζί ───
-      mgmtRows.forEach(m=>{
-        const effDate=m.observed_date||visitDateById[m.visit_id]||null;
-        if(!effDate)return;
-        const block=blockById[m.block_id];
-        if(!block)return;
-        const who=vineyardCodeById[block.vineyard_id]||block.block_code;
-        const dm=ensureDateEntry(datesMap,effDate);
-        dm.hasWO=true;
-        dm.woEntries.push({who,practices:m.practices||[],status:m.status||'pending',note:m.note||''});
+        dm.entries.push({who,variety,done,missed,kg,by:s.updated_by||s.created_by||''});
       });
 
       hwDatesMap=datesMap;
@@ -558,7 +529,6 @@
         if(hasPending&&info.hasDone)cls+=' has-both';
         else if(info.hasDone)cls+=' has-done';
         else if(hasPending)cls+=' has-sched';
-        if(info.hasWO)cls+=' has-wo';
         const rW=Math.round(info.kgWhite),rR=Math.round(info.kgRed);
         if(rW)kgHTML+=`<span class="mini-cal-kg kg-white">W: ${rW} Kg</span>`;
         if(rR)kgHTML+=`<span class="mini-cal-kg kg-red">R: ${rR} Kg</span>`;
@@ -579,7 +549,6 @@
       `<div class="mini-cal-legend">
         <span><i class="legend-dot sched"></i>Προγραμματισμένο</span>
         <span><i class="legend-dot done"></i>Τρυγήθηκε</span>
-        <span><i class="legend-dot wo"></i>Εργασία</span>
         <span>W=Λευκές, R=Κόκκινες</span>
       </div>`+detailsHTML;
   }
@@ -590,52 +559,33 @@
   }
 
   function buildMiniDayDetails(dateStr,info){
-    const woEntries=info.woEntries||[];
     return `<div class="mini-day-details">
       <div class="mini-day-details-title">📍 ${fmtDateShort(dateStr)}</div>
       ${info.entries.map(e=>{
         const sym=e.done?'✓':(e.missed?'✗':'−');
         const symCls=e.done?'sym-done':(e.missed?'sym-missed':'sym-sched');
         return `<div class="mini-day-row">
-          <div><span class="mini-day-sym ${symCls}">${sym}</span><span class="mini-day-name">${e.who}</span><div class="mini-day-meta">${e.variety||''}</div></div>
+          <div><span class="mini-day-sym ${symCls}">${sym}</span><span class="mini-day-name">${e.who}</span><div class="mini-day-meta">${e.variety||''}${e.by?' · '+e.by:''}</div></div>
           <div class="mini-day-meta" style="text-align:right;">${e.kg?Math.round(e.kg*10)/10+' kg':''}</div>
         </div>`;
       }).join('')}
-      ${woEntries.length?`
-        <div class="mini-day-details-title" style="margin-top:10px;">🔧 Εργασίες</div>
-        ${woEntries.map(w=>{
-          const sym=w.status==='done'?'✓':'−';
-          const symCls=w.status==='done'?'sym-done':'sym-sched';
-          return `<div class="mini-day-row">
-            <div><span class="mini-day-sym ${symCls}">${sym}</span><span class="mini-day-name">${w.who}</span><div class="mini-day-meta">${(w.practices||[]).join(', ')}</div></div>
-          </div>`;
-        }).join('')}
-      `:''}
     </div>`;
   }
 
   function buildAgenda(datesMap){
     const todayStr=new Date().toISOString().slice(0,10);
-    const upcoming=Object.keys(datesMap).filter(d=>{
-      if(d<todayStr)return false;
-      const info=datesMap[d];
-      const harvestPending=(info.entries||[]).some(e=>!e.done);
-      const woPending=(info.woEntries||[]).some(w=>w.status!=='done');
-      return harvestPending||woPending;
-    }).sort().slice(0,6);
+    const upcoming=Object.keys(datesMap).filter(d=>d>=todayStr && !datesMap[d].entries.every(e=>e.done)).sort().slice(0,6);
     if(!upcoming.length)return'<div class="hw-empty">Καμία προγραμματισμένη ημερομηνία.</div>';
     return upcoming.map(d=>{
       const info=datesMap[d];
-      const notDone=(info.entries||[]).filter(e=>!e.done);
-      const list=notDone.length?notDone:(info.entries||[]);
-      const parts=list.map(e=>{
+      const notDone=info.entries.filter(e=>!e.done);
+      const list=notDone.length?notDone:info.entries;
+      const who=list.map(e=>{
         const sym=e.done?'✓':(e.missed?'✗':'−');
         const symCls=e.done?'sym-done':(e.missed?'sym-missed':'sym-sched');
         return `<span class="hw-agenda-sym ${symCls}">${sym}</span>${e.who}${e.variety?' ('+e.variety+')':''}`;
-      });
-      const woPending=(info.woEntries||[]).filter(w=>w.status!=='done');
-      if(woPending.length)parts.push(`<span class="hw-agenda-sym" style="color:#a78bfa;">🔧</span>${woPending.length} εργασία${woPending.length>1?'ες':''}`);
-      return `<div class="hw-agenda-item"><span class="hw-agenda-date">${fmtDateShort(d)}</span><span class="hw-agenda-who">${parts.join(', ')}</span></div>`;
+      }).join(', ');
+      return `<div class="hw-agenda-item"><span class="hw-agenda-date">${fmtDateShort(d)}</span><span class="hw-agenda-who">${who}</span></div>`;
     }).join('');
   }
 
