@@ -51,13 +51,26 @@
   .chart-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;margin-top:10px;}
   .chart-card{border:1px solid var(--line);border-radius:8px;padding:10px;background:#fdfdfc;}
   .chart-card-title{font-size:12px;font-weight:700;margin-bottom:4px;font-family:-apple-system,sans-serif;}
-  .year-row{display:flex;gap:6px;align-items:center;margin:.75rem 0 .25rem;font-family:-apple-system,sans-serif;flex-wrap:wrap;}
+  .year-row{display:inline-flex;gap:6px;align-items:center;margin:.75rem 0 1.25rem;font-family:-apple-system,sans-serif;flex-wrap:wrap;border:1px solid var(--line);border-radius:8px;padding:6px 12px;background:var(--card);}
   .year-lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin-right:4px;}
   .year-btn{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:5px 14px;font-size:13px;cursor:pointer;color:var(--ink-dim);font-family:-apple-system,sans-serif;}
   .year-btn.on{background:var(--gold);color:#fff;border-color:var(--gold);}
   .section-toggle{display:flex;gap:6px;margin-bottom:10px;font-family:-apple-system,sans-serif;}
   .section-toggle-btn{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:7px 16px;font-size:13px;font-weight:600;cursor:pointer;color:var(--ink-dim);}
   .section-toggle-btn.on{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  /* ─── Σύνοψη τρύγου: συνολικά κιλά + γράφημα πίτας ανά ποικιλία ─── */
+  .summary-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;margin:0 0 1.75rem;font-family:-apple-system,sans-serif;}
+  .summary-hdr{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap;}
+  .summary-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin-bottom:6px;}
+  .summary-total{font-family:Georgia,serif;font-size:34px;font-weight:700;color:var(--ink);}
+  .summary-unit{font-size:16px;font-weight:400;color:var(--ink-dim);}
+  .pie-legend{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:14px;padding-top:14px;border-top:1px solid var(--line);}
+  .pie-legend-row{display:flex;align-items:center;gap:6px;font-size:12.5px;}
+  .pie-swatch{width:10px;height:10px;border-radius:3px;flex-shrink:0;}
+  .pie-legend-name{font-weight:600;color:var(--ink);}
+  .pie-legend-val{color:var(--ink-dim);}
+  .pie-legend-pct{color:var(--gold);font-weight:700;}
 
   /* ─── Προγραμματισμός τρύγου μέσα στον πίνακα: κλικ στον παραγωγό/block ─── */
   .block-cell{cursor:pointer;}
@@ -76,6 +89,37 @@
   .badge{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;font-family:-apple-system,sans-serif;display:inline-block;}
   .badge.scheduled{background:#fbeed9;color:#8a6416;}
   .badge.done{background:#e3f2e6;color:#2f6a3a;}
+
+  /* ─── Μικρό γράφημα προόδου τρύγου (blocks: τρυγήθηκαν / προγραμματισμένα / απομένουν) ─── */
+  .progress-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 20px;margin:0 0 1rem;font-family:-apple-system,sans-serif;}
+  .progress-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-dim);margin-bottom:10px;}
+  .progress-bar{display:flex;height:10px;border-radius:6px;overflow:hidden;background:#eeece6;margin-bottom:12px;}
+  .progress-seg{height:100%;}
+  .progress-seg.done{background:#4f9e5c;}
+  .progress-seg.sched{background:#d9a057;}
+  .progress-seg.remain{background:#ddd9cd;}
+  .progress-stats{display:flex;gap:20px;flex-wrap:wrap;font-size:12px;color:var(--ink-dim);}
+  .progress-stat b{font-size:17px;display:block;font-family:Georgia,serif;color:var(--ink);}
+  .progress-stat.done b{color:#2f6a3a;}
+  .progress-stat.sched b{color:#8a6416;}
+
+  /* ─── Σειρά με τα κουτάκια: Ημερολόγιο (ψηλό, αριστερά) · Σύνολο (πάνω δεξιά) · Πρόοδος (κάτω δεξιά, πιο μικρό) ─── */
+  .stats-row{display:grid;grid-template-columns:1fr;gap:14px;margin:0 0 1.75rem;align-items:stretch;}
+  @media(min-width:760px){
+    .stats-row{
+      grid-template-columns:1fr 1.3fr;
+      grid-template-areas:"cal total" "cal progress";
+    }
+    .gc-schedule{grid-area:cal;}
+    .gc-summary{grid-area:total;}
+    .gc-progress{grid-area:progress;}
+  }
+  .stats-row .progress-card,.stats-row .summary-card,.stats-row .link-card{margin:0;height:100%;}
+  .link-card{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 20px;text-decoration:none;color:var(--ink);font-family:-apple-system,sans-serif;transition:border-color .15s;}
+  .link-card:hover{border-color:var(--gold);}
+  .link-card-title{font-size:14px;font-weight:700;margin-bottom:8px;}
+  .link-card-desc{font-size:12px;color:var(--ink-dim);line-height:1.4;margin-bottom:12px;flex:1;}
+  .link-card-cta{font-size:12px;color:var(--gold);font-weight:600;}
 </style>
 </head>
 <body>
@@ -120,6 +164,7 @@ let scheduleByBlock={};        // block_id -> «τρέχον» harvest_schedule 
 let rowBlockIndex={};          // { variety: { rowLabel: block_id } } — για να ξέρουμε ΠΟΙΟ block αντιστοιχεί σε κάθε γραμμή του πίνακα
 let currentPersonName='';
 let isAdmin=false;             // true μόνο για πραγματικό Supabase login (σύμβουλος) — όχι για access code
+let allBlocksCount=0;          // σύνολο blocks του οινοποιείου — για το μικρό γράφημα προόδου τρύγου
 
 let allVarietyData={}; // unfiltered, all years — { varietyName: { blockName: { date: {...} } } }
 let varietyData={};    // filtered to selectedYear — same shape, used by render/chart
@@ -210,6 +255,7 @@ async function loadAndRender(){
   const blockById={};
   blocksRows.forEach(b=>{blockById[b.id]=b;});
   const blockIds=blocksRows.map(b=>b.id);
+  allBlocksCount=blocksRows.length;
 
   // Ετικέτα γραμμής στον πίνακα = ο αμπελώνας-γονέας (π.χ. όνομα παραγωγού στο Βασιλικόν), ώστε
   // πολλαπλά blocks/ποικιλίες κάτω από τον ίδιο αμπελώνα να εμφανίζονται μαζί σε μία γραμμή —
@@ -451,14 +497,112 @@ function buildMatrixHTML(blockMap, metric, allFields, labels, units, actualMap, 
   </table></div>${showHarvestCol&&anyApproxBaume?'<div style="font-size:11px;color:var(--ink-faint);margin-top:6px;font-family:-apple-system,sans-serif;">* το Baumé δεν καταχωρήθηκε στο ημερολόγιο τρύγου για αυτή τη φάση — δείχνεται η πλησιέστερη διαθέσιμη μέτρηση δειγματοληψίας.</div>':''}`;
 }
 
+// ─── Σύνοψη τρύγου (πάνω από τους πίνακες ποικιλιών): συνολικά κιλά της επιλεγμένης χρονιάς
+// + γράφημα πίτας με το ποσοστό κάθε ποικιλίας στο σύνολο της παραγωγής. Βασίζεται στο ήδη
+// year-filtered actualData (άθροισμα harvest_schedule.actual_kg ανά block), ίδια πηγή με τη
+// στήλη «Πραγματική ποσότητα (Kg)» των πινάκων, ώστε οι αριθμοί να ταιριάζουν παντού.
+function computeYearHarvestTotals(){
+  const totals={}; // variety -> kg
+  let grand=0;
+  Object.keys(actualData).forEach(variety=>{
+    let sum=0;
+    Object.keys(actualData[variety]).forEach(block=>{
+      Object.values(actualData[variety][block]).forEach(kg=>{sum+=(kg||0);});
+    });
+    if(sum>0){totals[variety]=sum;grand+=sum;}
+  });
+  return{totals,grand};
+}
+
+function buildPieSVG(slices,total){
+  const R=54,C=2*Math.PI*R;
+  let offset=0;
+  const circles=slices.map(s=>{
+    const frac=total>0?s.value/total:0;
+    const len=frac*C;
+    const circle=`<circle cx="80" cy="80" r="${R}" fill="none" stroke="${s.color}" stroke-width="24"
+      stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-offset}" transform="rotate(-90 80 80)">
+      <title>${s.label}: ${Math.round(s.value*10)/10} kg (${(frac*100).toFixed(1)}%)</title>
+    </circle>`;
+    offset+=len;
+    return circle;
+  }).join('');
+  return `<svg viewBox="0 0 160 160" style="width:120px;height:120px;flex-shrink:0;">${circles}</svg>`;
+}
+
+function renderHarvestSummary(){
+  const{totals,grand}=computeYearHarvestTotals();
+  if(!grand)return'';
+  const varieties=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
+  const round1=n=>Math.round(n*10)/10;
+  const slices=varieties.map((v,i)=>({label:v,value:totals[v],color:CHART_COLORS[i%CHART_COLORS.length]}));
+  const legendRows=varieties.map((v,i)=>{
+    const pct=grand>0?(totals[v]/grand*100):0;
+    return `<div class="pie-legend-row">
+      <span class="pie-swatch" style="background:${CHART_COLORS[i%CHART_COLORS.length]}"></span>
+      <span class="pie-legend-name">${v}</span>
+      <span class="pie-legend-val">${round1(totals[v]).toLocaleString('el-GR')} kg</span>
+      <span class="pie-legend-pct">${pct.toFixed(1)}%</span>
+    </div>`;
+  }).join('');
+  return `<div class="summary-card">
+    <div class="summary-hdr">
+      <div>
+        <div class="summary-title">Σύνολο Τρύγου${selectedYear?' — '+selectedYear:''}</div>
+        <div class="summary-total">${round1(grand).toLocaleString('el-GR')}<span class="summary-unit"> Kg</span></div>
+      </div>
+      ${buildPieSVG(slices,grand)}
+    </div>
+    <div class="pie-legend">${legendRows}</div>
+  </div>`;
+}
+
+// ─── Μικρό γράφημα προόδου τρύγου: πόσα blocks τρυγήθηκαν / είναι προγραμματισμένα / απομένουν,
+// σε όλο το οινοποιείο (ίδια dedup λογική με το scheduleByBlock που ήδη υπολογίζεται πιο πάνω —
+// ταιριάζει 1-προς-1 με τους αριθμούς του widget «Πρόγραμμα Τρύγου» στο reports.html).
+function renderBlockProgress(){
+  const total=allBlocksCount;
+  if(!total)return'';
+  let done=0,sched=0;
+  Object.values(scheduleByBlock).forEach(s=>{
+    if(s.actual_kg!==null&&s.actual_kg!==undefined)done++;
+    else sched++;
+  });
+  const remain=Math.max(0,total-done-sched);
+  const pct=n=>total>0?(n/total*100):0;
+  return `<div class="progress-card">
+    <div class="progress-title">Πρόοδος Τρύγου — Blocks</div>
+    <div class="progress-bar">
+      ${done?`<div class="progress-seg done" style="width:${pct(done)}%"></div>`:''}
+      ${sched?`<div class="progress-seg sched" style="width:${pct(sched)}%"></div>`:''}
+      ${remain?`<div class="progress-seg remain" style="width:${pct(remain)}%"></div>`:''}
+    </div>
+    <div class="progress-stats">
+      <div class="progress-stat done"><b>${done}</b>Τρυγήθηκαν</div>
+      <div class="progress-stat sched"><b>${sched}</b>Προγραμματισμένα</div>
+      <div class="progress-stat"><b>${remain}</b>Απομένουν</div>
+      <div class="progress-stat"><b>${total}</b>Σύνολο blocks</div>
+    </div>
+  </div>`;
+}
+
 function setSection(variety,mode){sectionMode[variety]=mode;render();}
 
 function renderYearSelector(){
   if(!availableYears.length)return'';
   return `<div class="year-row">
-    <span class="year-lbl">Χρονιά</span>
+    <span class="year-lbl">Vintage</span>
     ${availableYears.map(y=>`<button class="year-btn${String(selectedYear)===y?' on':''}" onclick="setYear('${y}')">${y}</button>`).join('')}
   </div>`;
+}
+
+// ─── Κάρτα-σύνδεσμος προς το Ημερολόγιο Τρύγου (harvest-schedule.html), δίπλα στην Πρόοδο/Σύνολο ───
+function renderHarvestScheduleCard(){
+  return `<a class="link-card" href="harvest-schedule.html?winery_id=${encodeURIComponent(WINERY_ID)}">
+    <div class="link-card-title">📅 Ημερολόγιο Τρύγου</div>
+    <div class="link-card-desc">Προγραμματισμός ημερομηνιών τρύγου, blocks έτοιμα (όριο Baumé), κατάσταση ανά ημέρα.</div>
+    <div class="link-card-cta">Άνοιγμα →</div>
+  </a>`;
 }
 
 function render(){
@@ -471,6 +615,16 @@ function render(){
     document.getElementById('content').innerHTML=yearHTML+'<div class="no-data">Δεν υπάρχουν δεδομένα για αυτή τη χρονιά.</div>';
     return;
   }
+
+  const progressHTML=renderBlockProgress();
+  const summaryHTML=renderHarvestSummary();
+  const scheduleCardHTML=renderHarvestScheduleCard();
+  const statsRowHTML=`<div class="stats-row">
+    <div class="gc-schedule">${scheduleCardHTML}</div>
+    <div class="gc-summary">${summaryHTML}</div>
+    <div class="gc-progress">${progressHTML}</div>
+  </div>`;
+  const measurementsLblHTML='<p class="section-title" style="margin:0 0 12px;">Μετρήσεις</p>';
 
   const html=varieties.map(variety=>{
     const blockMap=varietyData[variety]||{};
@@ -502,7 +656,7 @@ function render(){
     </div>`;
   }).join('');
 
-  document.getElementById('content').innerHTML=yearHTML+html;
+  document.getElementById('content').innerHTML=yearHTML+statsRowHTML+measurementsLblHTML+html;
 }
 
 // ─── Προγραμματισμός τρύγου από τον πίνακα (modal στο κλικ πάνω στον παραγωγό/block) ───

@@ -14,32 +14,59 @@
   html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;min-height:100vh;min-height:100dvh;}
   body{padding:32px 20px 40px;}
 
-  .page{max-width:960px;margin:0 auto;}
-  .layout{display:grid;grid-template-columns:1fr;gap:28px;}
-  @media(min-width:860px){
-    .layout{grid-template-columns:minmax(0,480px) minmax(260px,320px);justify-content:center;align-items:start;}
-    .side{position:sticky;top:24px;}
-  }
-  .main{width:100%;max-width:480px;margin:0 auto;}
-  @media(min-width:860px){.main{margin:0;}}
-  .side{width:100%;max-width:480px;margin:0 auto;}
-  @media(min-width:860px){.side{max-width:320px;}}
+  .page{max-width:1040px;margin:0 auto;}
 
   .eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--gold);text-align:center;margin:0 0 6px;}
-  h1{font-family:Georgia,serif;font-weight:400;font-size:24px;text-align:center;margin:0 0 6px;}
-  .sub{text-align:center;font-size:13px;color:var(--ink-dim);margin:0 0 24px;}
+  h1{font-family:Georgia,serif;font-weight:400;font-size:26px;text-align:center;margin:0 0 6px;}
+  .sub{text-align:center;font-size:13px;color:var(--ink-dim);margin:0 0 10px;}
 
-  .met-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 8px;margin-bottom:14px;}
-  .met-row{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;text-align:center;}
-  .met-val{font-size:18px;font-weight:600;color:var(--gold);}
-  .met-lbl{font-size:10px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-top:2px;}
-  .met-row.loading .met-val{color:var(--ink-faint);}
-
-  .people-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 18px;margin-bottom:22px;font-size:13px;color:var(--ink-dim);display:flex;flex-direction:column;gap:4px;}
-  .people-card b{color:var(--ink);font-weight:600;}
-  .people-card .row{display:flex;justify-content:space-between;gap:12px;}
+  /* Ξεχωριστό, διακριτικό κουτάκι — μικρό, όχι κεντραρισμένο, ώστε να μην «καπελώνει» το όνομα
+     του οινοποιείου (h1) από πάνω του */
+  .people-info{display:inline-flex;flex-direction:column;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:8px 14px;margin:0 0 22px;}
+  .people-info .row-lbl{font-size:9px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;text-align:left;}
+  .people-info .row-val{font-size:12px;font-weight:600;color:var(--ink-dim);text-align:left;}
 
   .section-lbl{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 10px;padding-left:2px;}
+
+  /* ─── Dashboard: 3 ίσες στήλες, σειρά Αμπελώνες Οινοποιείου · Προγραμματισμός Τρύγου · Ενιαίο Ημερολόγιο (τρύγος + εργασίες) ─── */
+  .dash-grid{display:grid;grid-template-columns:1fr;gap:16px;margin:0 0 30px;}
+  @media(min-width:860px){.dash-grid{grid-template-columns:repeat(3,1fr);align-items:start;}}
+  .dash-col{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;}
+  .dash-col-title{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 14px;display:flex;align-items:center;justify-content:space-between;}
+  .dash-col-title a{color:var(--ink-faint);text-decoration:none;}
+  .dash-col-title a:hover{color:var(--gold);}
+
+  /* Δύο κουτάκια στοιβαγμένα μέσα στο ίδιο κελί του dash-grid (Αμπελώνες Οινοποιείου + Καιρός,
+     από κάτω) — ώστε να μην προστεθεί 4η στήλη, το κελί απλά γίνεται ψηλότερο */
+  .dash-col-stack{display:flex;flex-direction:column;gap:16px;}
+  .weather-box{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;}
+  .weather-box .dash-col-title{font-size:10.5px;margin-bottom:10px;}
+  .weather-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;text-align:center;}
+  .weather-val{font-size:15px;font-weight:700;color:var(--gold);}
+  .weather-lbl{font-size:8.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
+  .weather-wind{font-size:10.5px;color:var(--ink-dim);text-align:center;margin-top:8px;}
+
+  /* στοιχεία οινοποιείου — κάθετη λίστα, ονόματα διακριτικά (μικρά/κεφαλαία/αχνά) αριστερά,
+     η τιμή είναι αυτή που τραβάει το μάτι */
+  .stat-list{display:flex;flex-direction:column;gap:2px;}
+  .stat-row{display:flex;justify-content:space-between;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--line);}
+  .stat-row:last-child{border-bottom:none;}
+  .stat-row-lbl{font-size:10.5px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;text-align:left;}
+  .stat-row-val{font-size:18px;font-weight:700;color:var(--gold);}
+  .stat-row.loading .stat-row-val{color:var(--ink-faint);font-size:14px;font-weight:400;}
+
+  /* γράφημα πίτας + σύνολο κιλών */
+  .pie-total{font-family:Georgia,serif;font-size:26px;font-weight:700;color:var(--ink);text-align:center;margin-bottom:4px;}
+  .pie-total .u{font-size:14px;font-weight:400;color:var(--ink-dim);}
+  .pie-sub{font-size:11px;color:var(--ink-faint);text-align:center;margin-bottom:12px;}
+  .pie-wrap{display:flex;justify-content:center;margin-bottom:12px;}
+  .pie-legend{display:flex;flex-direction:column;gap:7px;}
+  .pie-legend-row{display:flex;align-items:center;gap:7px;font-size:12px;}
+  .pie-swatch{width:9px;height:9px;border-radius:3px;flex-shrink:0;}
+  .pie-legend-name{font-weight:600;color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .pie-legend-val{color:var(--ink-dim);white-space:nowrap;}
+  .pie-legend-pct{color:var(--gold);font-weight:700;white-space:nowrap;min-width:38px;text-align:right;}
+  .dash-empty{color:var(--ink-faint);font-size:12px;text-align:center;padding:20px 0;}
 
   .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:20px;margin-bottom:14px;text-decoration:none;color:var(--ink);display:block;transition:border-color .15s;}
   .card:hover,.card:active{border-color:var(--gold);}
@@ -49,29 +76,18 @@
   .card.disabled{opacity:0.4;pointer-events:none;}
   .back-link{display:block;text-align:center;margin-top:24px;font-size:13px;color:var(--ink-dim);text-decoration:none;}
 
-  /* ─── Widget «Πρόγραμμα Τρύγου» (δεξιά στήλη) ─── */
-  .hw-card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;}
-  .hw-title-link{text-decoration:none;}
-  .hw-title{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:0 0 14px;display:flex;align-items:center;justify-content:space-between;}
-  .hw-title:hover{color:var(--gold);}
-  .hw-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-bottom:16px;}
-  .hw-stat-val{font-size:20px;font-weight:700;color:var(--ink-faint);}
-  .hw-stat-val.done{color:var(--green);}
-  .hw-stat-val.sched{color:var(--orange);}
-  .hw-stat-val.remain{color:var(--ink-dim);}
-  .hw-stat-lbl{font-size:9px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
-
   .mini-cal{margin-bottom:14px;}
   .mini-cal-hdr{font-size:11px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.04em;margin-bottom:8px;text-align:center;}
   .mini-cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;}
   .mini-cal-dow{font-size:9px;text-align:center;color:var(--ink-faint);padding-bottom:3px;}
-  .mini-cal-day{aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;border-radius:5px;color:var(--ink-dim);gap:1px;}
+  .mini-cal-day{position:relative;aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;border-radius:5px;color:var(--ink-dim);gap:1px;}
   .mini-cal-day.empty{visibility:hidden;}
   .mini-cal-day.today{box-shadow:inset 0 0 0 1px var(--gold);}
   .mini-cal-day.has-entries{cursor:pointer;}
   .mini-cal-day.has-sched{background:rgba(217,160,87,.28);color:var(--ink);font-weight:600;}
   .mini-cal-day.has-done{background:rgba(79,158,92,.28);color:var(--ink);font-weight:600;}
   .mini-cal-day.has-both{background:linear-gradient(135deg, rgba(217,160,87,.35) 50%, rgba(79,158,92,.35) 50%);color:var(--ink);font-weight:600;}
+  .mini-cal-day.has-wo::after{content:'';position:absolute;top:3px;right:3px;width:5px;height:5px;border-radius:50%;background:#a78bfa;}
   .mini-cal-day.selected{box-shadow:inset 0 0 0 2px var(--ink);}
   .mini-cal-num{font-weight:600;}
   .mini-cal-kg{font-size:6.5px;font-weight:700;line-height:1.2;white-space:nowrap;}
@@ -82,6 +98,7 @@
   .legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;}
   .legend-dot.sched{background:var(--orange);}
   .legend-dot.done{background:var(--green);}
+  .legend-dot.wo{background:#a78bfa;border-radius:50%;}
   .mini-day-details{margin:10px 0 14px;padding-top:10px;border-top:1px solid var(--line);}
   .mini-day-details-title{font-size:12px;font-weight:600;margin-bottom:8px;}
   .mini-day-row{display:flex;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px;}
@@ -93,6 +110,13 @@
   .sym-sched{color:var(--orange);}
   .sym-missed{color:var(--danger);}
 
+  .hw-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center;margin-bottom:16px;}
+  .hw-stat-val{font-size:20px;font-weight:700;color:var(--ink-faint);}
+  .hw-stat-val.done{color:var(--green);}
+  .hw-stat-val.sched{color:var(--orange);}
+  .hw-stat-val.remain{color:var(--ink-dim);}
+  .hw-stat-lbl{font-size:9px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
+
   .hw-agenda-lbl{font-size:10px;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.04em;margin:0 0 8px;}
   .hw-agenda-item{display:flex;justify-content:space-between;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:12px;}
   .hw-agenda-item:last-child{border-bottom:none;}
@@ -103,72 +127,87 @@
 </head>
 <body>
 <div class="page">
-  <div class="layout">
-    <div class="main">
-      <p class="eyebrow">Vineyard Reports</p>
-      <h1 id="pageTitle">Επίλεξε report</h1>
-      <p class="sub" id="wineryName"></p>
+  <p class="eyebrow">Vineyard Reports</p>
+  <h1 id="pageTitle">Επίλεξε report</h1>
+  <p class="sub" id="wineryName"></p>
 
-      <div class="met-card">
-        <div class="met-row loading" id="metricRow">
-          <div><div class="met-val">…</div><div class="met-lbl">Areas</div></div>
-          <div><div class="met-val">…</div><div class="met-lbl">Vineyards</div></div>
-          <div><div class="met-val">…</div><div class="met-lbl">Blocks</div></div>
-          <div><div class="met-val">…</div><div class="met-lbl">Παρατηρήσεις</div></div>
-          <div><div class="met-val">…</div><div class="met-lbl">Εκτάριa</div></div>
+  <div class="people-info">
+    <div class="row-lbl">Επιβλέπων Γεωπόνος</div>
+    <div class="row-val" id="supervisorName">—</div>
+    <div class="row-lbl" style="margin-top:6px;">Σύμβουλος</div>
+    <div class="row-val">VitisVision</div>
+  </div>
+
+  <!-- ─── 3 κουτάκια: (Αμπελώνες οινοποιείου + καιρός) · Προγραμματισμός τρύγου · Ενιαίο ημερολόγιο (τρύγος + εργασίες) ─── -->
+  <div class="dash-grid">
+    <div class="dash-col-stack">
+      <div class="dash-col" id="metricsCol">
+        <a id="metricsLink" href="#" style="text-decoration:none;">
+          <p class="dash-col-title"><span>🌿 Αμπελώνες Οινοποιείου</span><span>→</span></p>
+        </a>
+        <div class="stat-list loading" id="metricList">
+          <div class="stat-row loading"><span class="stat-row-lbl">Περιοχές</span><span class="stat-row-val">…</span></div>
+          <div class="stat-row loading"><span class="stat-row-lbl">Αμπελώνες</span><span class="stat-row-val">…</span></div>
+          <div class="stat-row loading"><span class="stat-row-lbl">Blocks</span><span class="stat-row-val">…</span></div>
+          <div class="stat-row loading"><span class="stat-row-lbl">Εκτάρια</span><span class="stat-row-val">…</span></div>
         </div>
       </div>
 
-      <div class="people-card" id="peopleCard" style="display:none;">
-        <div class="row"><span>Επιβλέπων</span><b id="supervisorName">—</b></div>
-        <div class="row"><span>Σύμβουλος</span><b id="consultantName">—</b></div>
+      <div class="weather-box" id="weatherCol">
+        <p class="dash-col-title" style="margin-bottom:10px;"><span>🌤️ Καιρός</span></p>
+        <div id="weatherContent"><div class="dash-empty">Φόρτωση…</div></div>
       </div>
-
-      <p class="section-lbl">Reports</p>
-
-      <a class="card" id="growthCard" href="#">
-        <div class="card-icon">🌱</div>
-        <div class="card-title">Ανάπτυξη &amp; Ασθένειες</div>
-        <div class="card-desc">BBCH στάδια ανά ποικιλία, παρατηρήσεις εντόμων/μυκήτων με ειδοποιήσεις.</div>
-      </a>
-
-      <a class="card" id="harvestCard" href="#">
-        <div class="card-icon">🍇</div>
-        <div class="card-title">Προγραμματισμός Τρύγου</div>
-        <div class="card-desc">Χημικές &amp; αγρονομικές αναλύσεις ανά ποικιλία — Baumé, τρυγικό, pH, βάρος ράγας.</div>
-      </a>
-
-      <a class="card" id="workordersCard" href="#">
-        <div class="card-icon">💧</div>
-        <div class="card-title">Εργασίες / Work Orders</div>
-        <div class="card-desc">Άρδευση, κλάδεμα, ψεκασμοί — παρακολούθηση εκκρεμών &amp; ολοκληρωμένων εργασιών.</div>
-      </a>
-
-      <a class="card" id="scheduleCard" href="#">
-        <div class="card-icon">📅</div>
-        <div class="card-title">Ημερολόγιο Τρύγου</div>
-        <div class="card-desc">Blocks έτοιμα για τρύγο (όριο Baumé), προγραμματισμός ημερομηνίας, κατάσταση.</div>
-      </a>
-
-      <a class="back-link" id="adminLink" href="#">← Πίσω στο admin</a>
     </div>
 
-    <div class="side">
-      <div class="hw-card">
-        <a class="hw-title-link" id="hwLink" href="#">
-          <p class="hw-title"><span>📅 Πρόγραμμα Τρύγου</span><span>→</span></p>
-        </a>
-        <div class="hw-stats loading" id="hwStats">
-          <div><div class="hw-stat-val">…</div><div class="hw-stat-lbl">Τρυγήθηκαν</div></div>
-          <div><div class="hw-stat-val">…</div><div class="hw-stat-lbl">Προγραμματ.</div></div>
-          <div><div class="hw-stat-val">…</div><div class="hw-stat-lbl">Απομένουν</div></div>
-        </div>
-        <div id="hwCalendar"></div>
-        <p class="hw-agenda-lbl">Επόμενες ημερομηνίες</p>
-        <div id="hwAgenda"><div class="hw-empty">Φόρτωση…</div></div>
+    <div class="dash-col" id="pieCol">
+      <a id="pieLink" href="#" style="text-decoration:none;">
+        <p class="dash-col-title"><span>🍇 Προγραμματισμός Τρύγου</span><span>→</span></p>
+      </a>
+      <div id="pieContent"><div class="dash-empty">Φόρτωση…</div></div>
+    </div>
+
+    <div class="dash-col" id="calCol">
+      <a id="hwLink" href="#" style="text-decoration:none;">
+        <p class="dash-col-title"><span>📅 Ημερολόγιο</span><span>→</span></p>
+      </a>
+      <div class="hw-stats loading" id="hwStats">
+        <div><div class="hw-stat-val">…</div><div class="hw-stat-lbl">Τρυγήθηκαν</div></div>
+        <div><div class="hw-stat-val">…</div><div class="hw-stat-lbl">Προγραμματ.</div></div>
+        <div><div class="hw-stat-val">…</div><div class="hw-stat-lbl">Απομένουν</div></div>
       </div>
+      <div id="hwCalendar"></div>
+      <p class="hw-agenda-lbl">Επόμενες ημερομηνίες</p>
+      <div id="hwAgenda"><div class="hw-empty">Φόρτωση…</div></div>
     </div>
   </div>
+
+  <p class="section-lbl">Reports</p>
+
+  <a class="card" id="growthCard" href="#">
+    <div class="card-icon">🌱</div>
+    <div class="card-title">Ανάπτυξη &amp; Ασθένειες</div>
+    <div class="card-desc">BBCH στάδια ανά ποικιλία, παρατηρήσεις εντόμων/μυκήτων με ειδοποιήσεις.</div>
+  </a>
+
+  <a class="card" id="harvestCard" href="#">
+    <div class="card-icon">🍇</div>
+    <div class="card-title">Προγραμματισμός Τρύγου</div>
+    <div class="card-desc">Χημικές &amp; αγρονομικές αναλύσεις ανά ποικιλία — Baumé, τρυγικό, pH, βάρος ράγας.</div>
+  </a>
+
+  <a class="card" id="workordersCard" href="#">
+    <div class="card-icon">💧</div>
+    <div class="card-title">Εργασίες / Work Orders</div>
+    <div class="card-desc">Άρδευση, κλάδεμα, ψεκασμοί — παρακολούθηση εκκρεμών &amp; ολοκληρωμένων εργασιών.</div>
+  </a>
+
+  <a class="card" id="scheduleCard" href="#">
+    <div class="card-icon">📅</div>
+    <div class="card-title">Ημερολόγιο Τρύγου</div>
+    <div class="card-desc">Blocks έτοιμα για τρύγο (όριο Baumé), προγραμματισμός ημερομηνίας, κατάσταση.</div>
+  </a>
+
+  <a class="back-link" id="adminLink" href="#">← Πίσω στο admin</a>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -183,6 +222,8 @@
   document.getElementById('scheduleCard').href='harvest-schedule.html'+q;
   document.getElementById('adminLink').href='admin.html'+q;
   document.getElementById('hwLink').href='harvest-schedule.html'+q;
+  document.getElementById('pieLink').href='harvest.html'+q;
+  document.getElementById('metricsLink').href='report.html'+q;
 
   const supa=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
 
@@ -190,48 +231,77 @@
     const access=await requireAccess(supa,WINERY_ID);
     if(!access)return; // requireAccess κάνει ήδη redirect στο access.html αν χρειάζεται
 
-    // Όνομα οινοποιείου + επόπτης (supervisor_name μπορεί να μην υπάρχει ακόμα σαν στήλη)
-    let winery=null;
-    {
-      const r1=await supa.from('wineries').select('name, supervisor_name').eq('id',WINERY_ID).maybeSingle();
-      if(!r1.error){winery=r1.data;}
-      else{
-        const r2=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
-        winery=r2.data;
-      }
-    }
+    // Επιβλέπων Γεωπόνος: πάντα ο Απόστολος (CONSULTANT_NAME, ίδιο σε όλα τα οινοποιεία — shared.js)
+    document.getElementById('supervisorName').textContent=(typeof CONSULTANT_NAME!=='undefined'&&CONSULTANT_NAME)?CONSULTANT_NAME:'Απόστολος Γρηγορίου';
+
+    // Όνομα οινοποιείου
+    const{data:winery}=await supa.from('wineries').select('name').eq('id',WINERY_ID).maybeSingle();
     if(winery){
       document.getElementById('wineryName').textContent=winery.name||'';
+      document.getElementById('pageTitle').textContent=winery.name||'Επίλεξε report';
       document.title=(winery.name||'Reports')+' — Vitis Vision';
     }
-    document.getElementById('consultantName').textContent=(typeof CONSULTANT_NAME!=='undefined'&&CONSULTANT_NAME)?CONSULTANT_NAME:'—';
-    if(winery&&winery.supervisor_name){
-      document.getElementById('supervisorName').textContent=winery.supervisor_name;
-      document.getElementById('peopleCard').style.display='flex';
-    }else if(typeof CONSULTANT_NAME!=='undefined'&&CONSULTANT_NAME){
-      // Δεν έχει οριστεί ακόμα επόπτης — δείξε τουλάχιστον τον σύμβουλο
-      document.getElementById('peopleCard').style.display='flex';
-    }
 
-    await Promise.all([loadMetrics(), loadHarvestWidget()]);
+    await Promise.all([loadMetrics(), loadHarvestWidget(), loadHarvestPie(), loadWeather()]);
+  }
+
+  // ─── Καιρός (Open-Meteo, χωρίς API key) — διαβάζει συντεταγμένες από wineries.gps (ίδια
+  // σύμβαση "lat, lon" με τα areas.gps/vineyards.gps). Το πεδίο ΔΕΝ υπάρχει ακόμα στη βάση —
+  // μέχρι να προστεθεί (ALTER TABLE) και να οριστεί μια τιμή, το κουτάκι δείχνει απλά ότι
+  // δεν έχει οριστεί τοποθεσία, χωρίς σφάλμα.
+  function degToCompass(deg){
+    if(deg==null||isNaN(deg))return'';
+    const dirs=['Β','ΒΑ','Α','ΝΑ','Ν','ΝΔ','Δ','ΒΔ'];
+    return dirs[Math.round(deg/45)%8];
+  }
+
+  async function loadWeather(){
+    const el=document.getElementById('weatherContent');
+    if(!el)return;
+    try{
+      if(!WINERY_ID){el.innerHTML='<div class="dash-empty">—</div>';return;}
+      const{data:winery}=await supa.from('wineries').select('gps').eq('id',WINERY_ID).maybeSingle();
+      const gps=winery&&winery.gps;
+      if(!gps){el.innerHTML='<div class="dash-empty">Δεν έχει οριστεί τοποθεσία (GPS).</div>';return;}
+      const parts=gps.split(',').map(s=>parseFloat(s.trim()));
+      if(parts.length<2||isNaN(parts[0])||isNaN(parts[1])){el.innerHTML='<div class="dash-empty">Μη έγκυρες συντεταγμένες.</div>';return;}
+      const[lat,lon]=parts;
+      const url=`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=relative_humidity_2m,uv_index,wind_direction_10m&daily=temperature_2m_max,temperature_2m_min&timezone=auto`;
+      const resp=await fetch(url);
+      if(!resp.ok)throw new Error('Open-Meteo HTTP '+resp.status);
+      const data=await resp.json();
+      const tMax=data.daily&&data.daily.temperature_2m_max&&data.daily.temperature_2m_max[0];
+      const tMin=data.daily&&data.daily.temperature_2m_min&&data.daily.temperature_2m_min[0];
+      const hum=data.current&&data.current.relative_humidity_2m;
+      const uv=data.current&&data.current.uv_index;
+      const windDeg=data.current&&data.current.wind_direction_10m;
+      const windDir=degToCompass(windDeg);
+      el.innerHTML=`
+        <div class="weather-grid">
+          <div><div class="weather-val">${tMax!=null?Math.round(tMax)+'°':'—'}</div><div class="weather-lbl">Μέγ.</div></div>
+          <div><div class="weather-val">${tMin!=null?Math.round(tMin)+'°':'—'}</div><div class="weather-lbl">Ελάχ.</div></div>
+          <div><div class="weather-val">${hum!=null?Math.round(hum)+'%':'—'}</div><div class="weather-lbl">Υγρασία</div></div>
+          <div><div class="weather-val">${uv!=null?Math.round(uv*10)/10:'—'}</div><div class="weather-lbl">UV</div></div>
+        </div>
+        ${windDir?`<div class="weather-wind">Άνεμος: ${windDir}</div>`:''}`;
+    }catch(e){
+      console.error('Αποτυχία φόρτωσης καιρού:',e);
+      el.innerHTML='<div class="dash-empty">Σφάλμα φόρτωσης καιρού.</div>';
+    }
   }
 
   async function loadMetrics(){
-    const setMetrics=(ta,tv,tb,to,ha)=>{
-      const row=document.getElementById('metricRow');
-      row.classList.remove('loading');
-      row.innerHTML=`
-        <div><div class="met-val">${ta}</div><div class="met-lbl">Areas</div></div>
-        <div><div class="met-val">${tv}</div><div class="met-lbl">Vineyards</div></div>
-        <div><div class="met-val">${tb}</div><div class="met-lbl">Blocks</div></div>
-        <div><div class="met-val">${to}</div><div class="met-lbl">Παρατηρήσεις</div></div>
-        <div><div class="met-val">${ha.toFixed(1)}</div><div class="met-lbl">Εκτάρια</div></div>`;
+    const setMetrics=(ta,tv,tb,ha)=>{
+      const list=document.getElementById('metricList');
+      list.classList.remove('loading');
+      const rows=[['Περιοχές',ta],['Αμπελώνες',tv],['Blocks',tb],['Εκτάρια',ha.toFixed(1)]];
+      list.innerHTML=rows.map(([lbl,val])=>`<div class="stat-row"><span class="stat-row-lbl">${lbl}</span><span class="stat-row-val">${val}</span></div>`).join('');
     };
     try{
-      if(!WINERY_ID){setMetrics(0,0,0,0,0);return;}
+      if(!WINERY_ID){setMetrics(0,0,0,0);return;}
       const{data:areas}=await supa.from('areas').select('id').eq('winery_id',WINERY_ID);
       const areaIds=(areas||[]).map(a=>a.id);
-      if(!areaIds.length){setMetrics(0,0,0,0,0);return;}
+      if(!areaIds.length){setMetrics(0,0,0,0);return;}
 
       const{data:vineyards}=await supa.from('vineyards').select('id').in('area_id',areaIds);
       const vineyardIds=(vineyards||[]).map(v=>v.id);
@@ -240,34 +310,103 @@
       const blockIds=(blocks||[]).map(b=>b.id);
       const ha=(blocks||[]).reduce((s,b)=>s+(parseFloat(b.hectares)||0),0);
 
-      let totalObs=0;
-      if(blockIds.length){
-        const obsTables=['bbch_observations','insect_observations','disease_observations','management_observations','estimation_observations'];
-        const counts=await Promise.all(obsTables.map(t=>
-          supa.from(t).select('id',{count:'exact',head:true}).in('block_id',blockIds)
-        ));
-        totalObs=counts.reduce((s,r)=>s+(r.count||0),0);
-      }
-
-      setMetrics(areaIds.length,vineyardIds.length,blockIds.length,totalObs,ha);
+      setMetrics(areaIds.length,vineyardIds.length,blockIds.length,ha);
     }catch(e){
       console.error('Αποτυχία φόρτωσης μετρικών:',e);
-      setMetrics(0,0,0,0,0);
+      setMetrics(0,0,0,0);
     }
   }
 
-  // ─── Widget «Πρόγραμμα Τρύγου» ───
-  // Ίδια λογική κατηγοριοποίησης block με το harvest-schedule.html (ένα «τρέχον» schedule row ανά
-  // block — προτεραιότητα στο ανοιχτό αν υπάρχει), ώστε οι αριθμοί να ταιριάζουν 1-προς-1 με αυτό
-  // που θα δει ο χρήστης αν πατήσει μέσα στο ίδιο το Ημερολόγιο Τρύγου.
+  // ─── Πίτα παραγωγής ανά ποικιλία (τρέχουσα/τελευταία χρονιά με δεδομένα) ───
+  // Ίδια πηγή δεδομένων/λογική με το «Σύνολο Τρύγου» του harvest.html (harvest_schedule.actual_kg),
+  // ώστε οι αριθμοί εδώ και εκεί να ταιριάζουν.
+  const CHART_COLORS=['#c99a3e','#4a6fa5','#7a9d54','#a5524a','#8e6bab','#4a9d94','#c47a3e','#5a5a8e'];
+
+  function buildPieSVG(slices,total){
+    const R=52,C=2*Math.PI*R;
+    let offset=0;
+    const circles=slices.map(s=>{
+      const frac=total>0?s.value/total:0;
+      const len=frac*C;
+      const circle=`<circle cx="76" cy="76" r="${R}" fill="none" stroke="${s.color}" stroke-width="22"
+        stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-offset}" transform="rotate(-90 76 76)">
+        <title>${s.label}: ${Math.round(s.value*10)/10} kg (${(frac*100).toFixed(1)}%)</title>
+      </circle>`;
+      offset+=len;
+      return circle;
+    }).join('');
+    return `<svg viewBox="0 0 152 152" style="width:132px;height:132px;">${circles}</svg>`;
+  }
+
+  async function loadHarvestPie(){
+    const pieEl=document.getElementById('pieContent');
+    try{
+      if(!WINERY_ID){pieEl.innerHTML='<div class="dash-empty">—</div>';return;}
+
+      const{data:areasRows}=await supa.from('areas').select('id').eq('winery_id',WINERY_ID);
+      const areaIds=(areasRows||[]).map(a=>a.id);
+      if(!areaIds.length){pieEl.innerHTML='<div class="dash-empty">Δεν βρέθηκαν δεδομένα.</div>';return;}
+
+      const{data:blockRows}=await supa.from('blocks').select('id,variety').in('area_id',areaIds);
+      const blockById={};
+      (blockRows||[]).forEach(b=>{blockById[b.id]=b;});
+      const blockIds=(blockRows||[]).map(b=>b.id);
+      if(!blockIds.length){pieEl.innerHTML='<div class="dash-empty">Δεν βρέθηκαν blocks.</div>';return;}
+
+      const{data:schedRows,error}=await supa.from('harvest_schedule').select('block_id,scheduled_date,actual_kg').in('block_id',blockIds).not('actual_kg','is',null);
+      if(error){console.error('loadHarvestPie:',error);pieEl.innerHTML='<div class="dash-empty">Σφάλμα φόρτωσης.</div>';return;}
+      const rows=schedRows||[];
+      if(!rows.length){pieEl.innerHTML='<div class="dash-empty">Δεν έχει τρυγηθεί τίποτα ακόμα.</div>';return;}
+
+      // Τελευταία χρονιά με πραγματικά τρυγημένα κιλά (ίδια λογική με το year-selector του harvest.html)
+      const years=[...new Set(rows.filter(r=>r.scheduled_date).map(r=>r.scheduled_date.slice(0,4)))].sort();
+      const latestYear=years[years.length-1];
+
+      const totals={}; // variety -> kg
+      let grand=0;
+      rows.forEach(r=>{
+        if(!r.scheduled_date||r.scheduled_date.slice(0,4)!==latestYear)return;
+        const block=blockById[r.block_id];
+        if(!block)return;
+        const names=(typeof parseVarietyNames==='function')?parseVarietyNames(block.variety):[block.variety||'Άγνωστη ποικιλία'];
+        names.forEach(v=>{
+          totals[v]=(totals[v]||0)+(r.actual_kg||0);
+        });
+      });
+      grand=Object.values(totals).reduce((s,v)=>s+v,0);
+
+      if(!grand){pieEl.innerHTML='<div class="dash-empty">Δεν έχει τρυγηθεί τίποτα ακόμα φέτος.</div>';return;}
+
+      const varieties=Object.keys(totals).sort((a,b)=>totals[b]-totals[a]);
+      const round1=n=>Math.round(n*10)/10;
+      const slices=varieties.map((v,i)=>({label:v,value:totals[v],color:CHART_COLORS[i%CHART_COLORS.length]}));
+      const legendRows=varieties.map((v,i)=>{
+        const pct=grand>0?(totals[v]/grand*100):0;
+        return `<div class="pie-legend-row">
+          <span class="pie-swatch" style="background:${CHART_COLORS[i%CHART_COLORS.length]}"></span>
+          <span class="pie-legend-name">${v}</span>
+          <span class="pie-legend-val">${round1(totals[v]).toLocaleString('el-GR')} kg</span>
+          <span class="pie-legend-pct">${pct.toFixed(1)}%</span>
+        </div>`;
+      }).join('');
+
+      pieEl.innerHTML=`
+        <div class="pie-total">${round1(grand).toLocaleString('el-GR')}<span class="u"> Kg</span></div>
+        <div class="pie-sub">Σύνολο τρύγου — ${latestYear}</div>
+        <div class="pie-wrap">${buildPieSVG(slices,grand)}</div>
+        <div class="pie-legend">${legendRows}</div>`;
+    }catch(e){
+      console.error('Αποτυχία φόρτωσης πίτας παραγωγής:',e);
+      pieEl.innerHTML='<div class="dash-empty">Σφάλμα φόρτωσης.</div>';
+    }
+  }
+
+  // ─── Widget «Πρόγραμμα Τρύγου» (ημερολόγιο) ───
   const MONTH_NAMES_EL=['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος','Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος'];
   const DOW_EL=['Δε','Τρ','Τε','Πε','Πα','Σα','Κυ'];
-  let hwDatesMap={};      // dateStr -> {hasSched,hasDone,hasMissed,kgWhite,kgRed,entries[]} — γεμίζει το loadHarvestWidget
-  let hwSelectedDay=null; // επιλεγμένη μέρα στο mini-ημερολόγιο (κλικ, όχι hover)
+  let hwDatesMap={};
+  let hwSelectedDay=null;
 
-  // Ταξινόμηση ποικιλιών σε λευκές/κόκκινες με βάση τον κωδικό τους (π.χ. "SRH — Syrah" -> "SRH"),
-  // για το σύνολο κιλών ανά ημέρα στο κουτάκι του ημερολογίου. Ενημέρωσε τις λίστες αν προστεθεί
-  // νέα ποικιλία που δεν καλύπτεται.
   const WHITE_VARIETY_CODES=new Set(['SVB','XNS','PRM','VAS']);
   const RED_VARIETY_CODES=new Set(['YND','SRH','ZFD','MTR','GRN','MSF','CSF','CSV','LFK']);
   function varietyCode(varietyStr){
@@ -285,6 +424,14 @@
     if(!d)return'—';
     const dt=new Date(d+'T00:00:00');
     return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0');
+  }
+
+  // Επιστρέφει την ημερήσια εγγραφή του datesMap για μια ημερομηνία, δημιουργώντας την αν
+  // δεν υπάρχει ακόμα — έτσι μια μέρα με ΜΟΝΟ εργασία (χωρίς προγραμματισμένο τρύγο) παίρνει
+  // επίσης δικό της κελί/marker στο ημερολόγιο.
+  function ensureDateEntry(datesMap,date){
+    if(!datesMap[date])datesMap[date]={hasSched:false,hasDone:false,hasMissed:false,hasWO:false,kgWhite:0,kgRed:0,entries:[],woEntries:[]};
+    return datesMap[date];
   }
 
   async function loadHarvestWidget(){
@@ -319,10 +466,16 @@
       const totalBlocks=blockIds.length;
       if(!totalBlocks){setHwStats(0,0,0);document.getElementById('hwAgenda').innerHTML='<div class="hw-empty">Δεν βρέθηκαν blocks.</div>';return;}
 
-      const{data:schedRows}=await supa.from('harvest_schedule').select('*').in('block_id',blockIds).order('scheduled_date',{ascending:true});
-      const rows=schedRows||[];
+      const[schedRes,mgmtRes,visitsRes]=await Promise.all([
+        supa.from('harvest_schedule').select('*').in('block_id',blockIds).order('scheduled_date',{ascending:true}),
+        supa.from('management_observations').select('block_id,visit_id,observed_date,practices,note,status').in('block_id',blockIds),
+        supa.from('visits').select('id,visit_date').eq('winery_id',WINERY_ID)
+      ]);
+      const rows=schedRes.data||[];
+      const mgmtRows=mgmtRes.data||[];
+      const visitDateById={};
+      (visitsRes.data||[]).forEach(v=>{visitDateById[v.id]=v.visit_date;});
 
-      // Ένα «τρέχον» row ανά block, για τα σύνολα (ίδια λογική με harvest-schedule.html)
       const currentByBlock={};
       rows.forEach(s=>{
         const prev=currentByBlock[s.block_id];
@@ -340,8 +493,6 @@
       const remainCount=Math.max(0,totalBlocks-doneCount-schedCount);
       setHwStats(doneCount,schedCount,remainCount);
 
-      // Ημερολόγιο: ΟΛΕΣ οι γραμμές (κάθε φάση τρύγου), ομαδοποιημένες ανά ημερομηνία.
-      // "missed" = ήταν προγραμματισμένο, η μέρα πέρασε, και ακόμα δεν καταχωρήθηκαν kg.
       const todayStrForMap=new Date().toISOString().slice(0,10);
       const datesMap={};
       rows.forEach(s=>{
@@ -354,14 +505,26 @@
         const missed=!done&&s.scheduled_date<todayStrForMap;
         const kg=parseFloat(done?s.actual_kg:s.estimated_kg)||0;
         const colorGroup=varietyColorGroup(block.variety);
-        if(!datesMap[s.scheduled_date])datesMap[s.scheduled_date]={hasSched:false,hasDone:false,hasMissed:false,kgWhite:0,kgRed:0,entries:[]};
-        const dm=datesMap[s.scheduled_date];
+        const dm=ensureDateEntry(datesMap,s.scheduled_date);
         if(done)dm.hasDone=true;
         else if(missed)dm.hasMissed=true;
         else dm.hasSched=true;
         if(colorGroup==='white')dm.kgWhite+=kg;
         else if(colorGroup==='red')dm.kgRed+=kg;
         dm.entries.push({who,variety,done,missed,kg});
+      });
+
+      // ─── Ενιαίο ημερολόγιο: προσθήκη εργασιών (management_observations / Εργασίες-Work Orders)
+      // στις ίδιες ημέρες, ώστε το ίδιο ημερολόγιο να δείχνει και τρύγο και εργασίες μαζί ───
+      mgmtRows.forEach(m=>{
+        const effDate=m.observed_date||visitDateById[m.visit_id]||null;
+        if(!effDate)return;
+        const block=blockById[m.block_id];
+        if(!block)return;
+        const who=vineyardCodeById[block.vineyard_id]||block.block_code;
+        const dm=ensureDateEntry(datesMap,effDate);
+        dm.hasWO=true;
+        dm.woEntries.push({who,practices:m.practices||[],status:m.status||'pending',note:m.note||''});
       });
 
       hwDatesMap=datesMap;
@@ -377,7 +540,7 @@
 
   function buildMiniCalendar(year,month,datesMap){
     const first=new Date(year,month,1);
-    const startDow=(first.getDay()+6)%7; // 0=Δευτέρα
+    const startDow=(first.getDay()+6)%7;
     const daysInMonth=new Date(year,month+1,0).getDate();
     const todayStr=new Date().toISOString().slice(0,10);
     let cells=DOW_EL.map(d=>`<div class="mini-cal-dow">${d}</div>`).join('');
@@ -391,14 +554,11 @@
       let kgHTML='';
       if(info){
         cls+=' has-entries';
-        // Χρώμα κουτιού: όπως πριν — πορτοκαλί=προγραμματισμένο, πράσινο=τρυγήθηκε, gradient αν
-        // έχει και τα δύο. Το "πέρασε η μέρα χωρίς καταχώρηση" ΔΕΝ αλλάζει το χρώμα του κουτιού
-        // (θα έδειχνε σαν χαλασμένη/αποτυχημένη μέρα) — φαίνεται με ✗ δίπλα στο όνομα του
-        // παραγωγού στη λίστα από κάτω.
         const hasPending=info.hasSched||info.hasMissed;
         if(hasPending&&info.hasDone)cls+=' has-both';
         else if(info.hasDone)cls+=' has-done';
         else if(hasPending)cls+=' has-sched';
+        if(info.hasWO)cls+=' has-wo';
         const rW=Math.round(info.kgWhite),rR=Math.round(info.kgRed);
         if(rW)kgHTML+=`<span class="mini-cal-kg kg-white">W: ${rW} Kg</span>`;
         if(rR)kgHTML+=`<span class="mini-cal-kg kg-red">R: ${rR} Kg</span>`;
@@ -411,8 +571,6 @@
     </div>`;
   }
 
-  // Ξαναζωγραφίζει το mini-ημερολόγιο (πλέγμα + legend + λεπτομέρειες επιλεγμένης μέρας) χωρίς να
-  // ξαναφορτώνει δεδομένα — χρησιμοποιείται και στο αρχικό load και σε κάθε κλικ σε μέρα.
   function renderHwCalendar(){
     const today=new Date();
     const detailsHTML=(hwSelectedDay&&hwDatesMap[hwSelectedDay])?buildMiniDayDetails(hwSelectedDay,hwDatesMap[hwSelectedDay]):'';
@@ -421,18 +579,18 @@
       `<div class="mini-cal-legend">
         <span><i class="legend-dot sched"></i>Προγραμματισμένο</span>
         <span><i class="legend-dot done"></i>Τρυγήθηκε</span>
+        <span><i class="legend-dot wo"></i>Εργασία</span>
         <span>W=Λευκές, R=Κόκκινες</span>
       </div>`+detailsHTML;
   }
 
-  // Κλικ σε μέρα του mini-ημερολογίου (αντί για hover/title) — δεύτερο κλικ στην ίδια μέρα την
-  // αποεπιλέγει, ίδια συμπεριφορά με το μεγάλο ημερολόγιο στο harvest-schedule.html.
   function selectMiniDay(dateStr){
     hwSelectedDay=(hwSelectedDay===dateStr)?null:dateStr;
     renderHwCalendar();
   }
 
   function buildMiniDayDetails(dateStr,info){
+    const woEntries=info.woEntries||[];
     return `<div class="mini-day-details">
       <div class="mini-day-details-title">📍 ${fmtDateShort(dateStr)}</div>
       ${info.entries.map(e=>{
@@ -443,23 +601,41 @@
           <div class="mini-day-meta" style="text-align:right;">${e.kg?Math.round(e.kg*10)/10+' kg':''}</div>
         </div>`;
       }).join('')}
+      ${woEntries.length?`
+        <div class="mini-day-details-title" style="margin-top:10px;">🔧 Εργασίες</div>
+        ${woEntries.map(w=>{
+          const sym=w.status==='done'?'✓':'−';
+          const symCls=w.status==='done'?'sym-done':'sym-sched';
+          return `<div class="mini-day-row">
+            <div><span class="mini-day-sym ${symCls}">${sym}</span><span class="mini-day-name">${w.who}</span><div class="mini-day-meta">${(w.practices||[]).join(', ')}</div></div>
+          </div>`;
+        }).join('')}
+      `:''}
     </div>`;
   }
 
   function buildAgenda(datesMap){
     const todayStr=new Date().toISOString().slice(0,10);
-    const upcoming=Object.keys(datesMap).filter(d=>d>=todayStr && !datesMap[d].entries.every(e=>e.done)).sort().slice(0,6);
+    const upcoming=Object.keys(datesMap).filter(d=>{
+      if(d<todayStr)return false;
+      const info=datesMap[d];
+      const harvestPending=(info.entries||[]).some(e=>!e.done);
+      const woPending=(info.woEntries||[]).some(w=>w.status!=='done');
+      return harvestPending||woPending;
+    }).sort().slice(0,6);
     if(!upcoming.length)return'<div class="hw-empty">Καμία προγραμματισμένη ημερομηνία.</div>';
     return upcoming.map(d=>{
       const info=datesMap[d];
-      const notDone=info.entries.filter(e=>!e.done);
-      const list=notDone.length?notDone:info.entries;
-      const who=list.map(e=>{
+      const notDone=(info.entries||[]).filter(e=>!e.done);
+      const list=notDone.length?notDone:(info.entries||[]);
+      const parts=list.map(e=>{
         const sym=e.done?'✓':(e.missed?'✗':'−');
         const symCls=e.done?'sym-done':(e.missed?'sym-missed':'sym-sched');
         return `<span class="hw-agenda-sym ${symCls}">${sym}</span>${e.who}${e.variety?' ('+e.variety+')':''}`;
-      }).join(', ');
-      return `<div class="hw-agenda-item"><span class="hw-agenda-date">${fmtDateShort(d)}</span><span class="hw-agenda-who">${who}</span></div>`;
+      });
+      const woPending=(info.woEntries||[]).filter(w=>w.status!=='done');
+      if(woPending.length)parts.push(`<span class="hw-agenda-sym" style="color:#a78bfa;">🔧</span>${woPending.length} εργασία${woPending.length>1?'ες':''}`);
+      return `<div class="hw-agenda-item"><span class="hw-agenda-date">${fmtDateShort(d)}</span><span class="hw-agenda-who">${parts.join(', ')}</span></div>`;
     }).join('');
   }
 
